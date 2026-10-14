@@ -185,6 +185,9 @@ const AGENT_GROUP: Record<AgentId, AgentGroup> = {
   rapamycin: 'autophagy',
   chloroquine: 'autophagy',
 };
+export type { AgentGroup };
+export const agentGroup = (a: AgentId) => AGENT_GROUP[a];
+
 const ASSAY_REL: Record<AgentGroup, Record<AssayId, number>> = {
   dna: { DAPI: 0.5, PHAL: 0.4, NMA: 0.9, MORPH: 0.7, SAGAL: 0.9, CLONO: 0.95, WOUND: 0.4 },
   mitotic: { DAPI: 0.7, PHAL: 0.8, NMA: 1, MORPH: 0.85, SAGAL: 0.5, CLONO: 0.7, WOUND: 0.6 },

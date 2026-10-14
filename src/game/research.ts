@@ -1,6 +1,6 @@
 import { ASSAYS, JOURNAL_MIN, LINES, MARKERS, SCOPES, finding, isAssay } from './data';
 import { addXp, bump, log } from './econ';
-import type { AgentId, Experiment, GameState, LineId, Readout } from './types';
+import type { AgentId, Experiment, GameState, LabResult, LineId, Readout } from './types';
 
 export const REPLICATES_FOR_PAPER = 3;
 
@@ -14,9 +14,30 @@ export function parseKey(key: string) {
 /** Nome da leitura; ensaios viram chave "@assay.X" para serem traduzidos. */
 export const readoutName = (r: Readout) => (r === 'MTT' ? 'MTT' : isAssay(r) ? `@assay.${r}` : MARKERS[r].name);
 
+function saveResult(s: GameState, r: LabResult) {
+  s.labResults = [r, ...(s.labResults ?? [])].slice(0, 40);
+}
+
+/** Resultado (figura) mais recente bem-sucedido de um projeto. */
+export const lastResult = (s: GameState, key: string) => (s.labResults ?? []).find((r) => r.key === key && r.ok);
+
 export function resolveExperiment(s: GameState, e: Experiment) {
   const p = { line: LINES[e.line].name, agent: `@agent.${e.agent}`, readout: readoutName(e.readout) };
   const ok = e.lucky || (e.quality >= 0.35 && Math.random() < 0.15 + 0.85 * e.quality);
+  const rel = finding(e.agent, e.readout, e.line).rel;
+  saveResult(s, {
+    id: e.id,
+    key: e.key,
+    line: e.line,
+    agent: e.agent,
+    readout: e.readout,
+    markers: e.markers,
+    quality: e.quality,
+    ok,
+    effect: ok ? Math.min(1, rel * (0.7 + 0.3 * e.quality)) : 0.1 + Math.random() * 0.2,
+    at: s.time,
+    seed: Math.floor(Math.random() * 1e9),
+  });
   if (!ok) {
     addXp(s, 5);
     log(s, 'log.expInconclusive', { ...p, q: Math.round(e.quality * 100) }, 'warn');

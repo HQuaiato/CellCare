@@ -146,6 +146,22 @@ export interface Experiment {
   lucky?: boolean;
 }
 
+/** Resultado de um experimento concluído, usado para desenhar a figura. */
+export interface LabResult {
+  id: string;
+  key: string;
+  line: LineId;
+  agent: AgentId;
+  readout: Readout;
+  markers: MarkerId[];
+  quality: number;
+  ok: boolean;
+  /** intensidade do efeito, 0–1 */
+  effect: number;
+  at: number;
+  seed: number;
+}
+
 export interface Paper {
   id: string;
   key: string;
@@ -181,6 +197,7 @@ export interface GameState {
   experiments: Experiment[];
   replicates: Record<string, number>;
   papers: Paper[];
+  labResults?: LabResult[];
   demand: Record<string, number>;
   inventory: Record<string, number>;
   /** scope = índice do melhor microscópio em SCOPES */
