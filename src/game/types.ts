@@ -90,6 +90,8 @@ export interface Flask {
   afx: boolean;
   /** horas restantes de tratamento anti-micoplasma */
   mycoTreat: number;
+  /** horas restantes de fase lag (adesão e recuperação depois de semear/descongelar) */
+  lag?: number;
   /** imortalizada com hTERT: ignora o limite de Hayflick */
   immortal?: boolean;
   transduction: { marker: MarkerId; hoursLeft: number } | null;

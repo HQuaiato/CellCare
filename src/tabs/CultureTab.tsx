@@ -6,7 +6,7 @@ import { QuestCard } from '../components/QuestCard';
 import { Bar, Empty, Info, fmtCells, fmtNum, pct, type Tone } from '../components/ui';
 import { askHelp, canAskHelp, discardFlask, feed, have, mediumNeeds, passage, testMyco, treatContam, treatMyco } from '../game/actions';
 import { CONTAM, FLASKS, LINES, MEDIA, SCOPES, levelOf } from '../game/data';
-import { capacity, co2Of, confluence, flaskMood, flaskName, viability } from '../game/sim';
+import { capacity, co2Of, confluence, currentDoubling, flaskMood, flaskName, growthFactors, viability } from '../game/sim';
 import { act, useGame } from '../game/store';
 import type { Flask, GameState, ScopeMode } from '../game/types';
 import { t } from '../i18n';
@@ -99,9 +99,24 @@ function lineInfo(f: Flask) {
   return [
     `${t(`line.${f.line}.origin`)}.`,
     t(`line.${f.line}.fact`),
-    `${t('culture.lineSpecs', { medium: `@medium.${L.medium}`, td: L.td, p53: L.p53 === 'wt' ? '@ui.p53wt' : '@ui.p53null' })}${
+    `${t('culture.lineSpecs', { medium: `@medium.${L.medium}`, td: L.td, p53: L.p53 === 'wt' ? '@ui.p53wt' : '@ui.p53null' })} · ${t('culture.tdRange', { r: L.tdRange })}${
       L.maxPassage ? ` · ${t('culture.senescenceAt', { p: L.maxPassage })}` : ''
     }`,
+  ].join('\n');
+}
+
+/** Explica a velocidade atual: duplicação ideal x atual e o que está freando. */
+function growthInfo(f: Flask) {
+  const L = LINES[f.line];
+  const fac = growthFactors(f);
+  const slow = Object.entries(fac)
+    .filter(([, v]) => v < 0.9)
+    .sort((a, b) => a[1] - b[1])
+    .map(([k, v]) => `• ${t(`growth.${k}`)}: ${Math.round(v * 100)}%`);
+  return [
+    t('culture.growthIntro', { line: L.name, td: L.td, r: L.tdRange }),
+    slow.length ? t('culture.growthSlow') : t('culture.growthOk'),
+    ...slow,
   ].join('\n');
 }
 
@@ -194,6 +209,10 @@ export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }
                 {f.immortal && <span className="badge-pill">♾️ hTERT</span>}
                 {f.transduction && <span className="badge-pill">🦠 {f.transduction.marker} · {Math.ceil(f.transduction.hoursLeft)} h</span>}
                 {f.mycoTreat > 0 && <span className="badge-pill">💊 {Math.ceil(f.mycoTreat)} h</span>}
+                <span className="badge-pill">
+                  ⏱️ {Number.isFinite(currentDoubling(f)) && currentDoubling(f) < 500 ? t('culture.doublingNow', { h: Math.round(currentDoubling(f)) }) : t('culture.notGrowing')}{' '}
+                  <Info text={growthInfo(f)} title={t('culture.growthTitle')} />
+                </span>
               </div>
             </div>
           </section>

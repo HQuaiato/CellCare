@@ -44,8 +44,12 @@ export const MEDIUM_ORDER = Object.keys(MEDIA) as MediumId[];
 export interface LineDef {
   name: string;
   medium: MediumId;
-  /** tempo de duplicação, h */
+  /**
+   * tempo de duplicação em condições ideais, h — valor representativo dos dados do Cellosaurus
+   * (ATCC, DSMZ, CLS, JCRB, NCI-60 e artigos citados lá); tdRange é a faixa relatada.
+   */
   td: number;
+  tdRange: string;
   suspension: boolean;
   /** multiplica a capacidade do frasco (células pequenas cabem mais) */
   size: number;
@@ -66,22 +70,22 @@ export interface LineDef {
 }
 
 export const LINES: Record<LineId, LineDef> = {
-  L929: { name: 'L929', medium: 'MEM', td: 24, suspension: false, size: 1.2, glcRate: 0.45, price: 6, hue: 95, level: 1, sens: 0.5, p53: 'wt', startPassage: 10, morph: 'spindle', badge: '🐭' },
-  HeLa: { name: 'HeLa', medium: 'DMEM', td: 24, suspension: false, size: 1, glcRate: 0.6, price: 15, hue: 330, level: 1, sens: 0.7, p53: 'inactive', startPassage: 5, morph: 'polygonal', badge: '👑' },
-  HEK293T: { name: 'HEK293T', medium: 'DMEM', td: 20, suspension: false, size: 1.4, glcRate: 0.55, price: 20, hue: 200, level: 2, sens: 1.1, p53: 'inactive', startPassage: 5, morph: 'cobblestone', badge: '🏭' },
-  A549: { name: 'A549', medium: 'F12K', td: 22, suspension: false, size: 1, glcRate: 0.6, price: 22, hue: 140, level: 2, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🫁' },
-  MCF7: { name: 'MCF-7', medium: 'MEM', td: 36, suspension: false, size: 1.2, glcRate: 0.4, price: 30, hue: 280, level: 3, sens: 1, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🎗️' },
-  U2OS: { name: 'U2OS', medium: 'MCCOY', td: 30, suspension: false, size: 0.7, glcRate: 0.5, price: 28, hue: 30, level: 3, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'flat', badge: '🦴' },
-  MDA231: { name: 'MDA-MB-231', medium: 'DMEM', td: 32, suspension: false, size: 0.9, glcRate: 0.65, price: 34, hue: 300, level: 4, sens: 0.8, p53: 'inactive', startPassage: 5, morph: 'spindle', badge: '🎗️' },
-  A375: { name: 'A375', medium: 'DMEM', td: 22, suspension: false, size: 1, glcRate: 0.55, price: 34, hue: 10, level: 4, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'star', badge: '🌑' },
-  U87: { name: 'U87 MG', medium: 'MEM', td: 34, suspension: false, size: 0.7, glcRate: 0.5, price: 38, hue: 250, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠' },
-  A172: { name: 'A172', medium: 'DMEM', td: 38, suspension: false, size: 0.8, glcRate: 0.45, price: 38, hue: 225, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠' },
-  Jurkat: { name: 'Jurkat', medium: 'RPMI', td: 28, suspension: true, size: 1, glcRate: 0.35, price: 40, hue: 50, level: 6, sens: 1, p53: 'inactive', startPassage: 5, morph: 'round', badge: '🩸' },
-  MRC5: { name: 'MRC-5', medium: 'MEM', td: 30, suspension: false, size: 0.45, glcRate: 0.4, price: 60, hue: 40, level: 7, sens: 1.1, p53: 'wt', maxPassage: 28, startPassage: 12, morph: 'spindle', badge: '💉' },
-  IMR90: { name: 'IMR-90', medium: 'MEM', td: 32, suspension: false, size: 0.45, glcRate: 0.4, price: 65, hue: 65, level: 7, sens: 1.1, p53: 'wt', maxPassage: 26, startPassage: 10, morph: 'spindle', badge: '⏳' },
-  HDF: { name: 'HDF', medium: 'DMEM', td: 40, suspension: false, size: 0.4, glcRate: 0.45, price: 75, hue: 15, level: 8, sens: 1.2, p53: 'wt', maxPassage: 18, startPassage: 5, morph: 'spindle', badge: '✋' },
-  HUVEC: { name: 'HUVEC', medium: 'EGM2', td: 30, suspension: false, size: 0.6, glcRate: 0.5, price: 120, hue: 355, level: 9, sens: 1.5, p53: 'wt', maxPassage: 9, startPassage: 2, morph: 'cobblestone', badge: '🫀' },
-  iPSC: { name: 'iPSC', medium: 'MTESR', td: 22, suspension: false, size: 1.6, glcRate: 0.7, price: 220, hue: 170, level: 10, sens: 2, p53: 'wt', startPassage: 25, morph: 'colony', badge: '🌱' },
+  L929: { name: 'L929', medium: 'MEM', td: 25, tdRange: '21–32 h', suspension: false, size: 1.2, glcRate: 0.45, price: 6, hue: 95, level: 1, sens: 0.5, p53: 'wt', startPassage: 10, morph: 'spindle', badge: '🐭' },
+  HeLa: { name: 'HeLa', medium: 'DMEM', td: 31, tdRange: '30–48 h', suspension: false, size: 1, glcRate: 0.6, price: 15, hue: 330, level: 1, sens: 0.7, p53: 'inactive', startPassage: 5, morph: 'polygonal', badge: '👑' },
+  HEK293T: { name: 'HEK293T', medium: 'DMEM', td: 27, tdRange: '24–30 h', suspension: false, size: 1.4, glcRate: 0.55, price: 20, hue: 200, level: 2, sens: 1.1, p53: 'inactive', startPassage: 5, morph: 'cobblestone', badge: '🏭' },
+  A549: { name: 'A549', medium: 'F12K', td: 24, tdRange: '18–40 h', suspension: false, size: 1, glcRate: 0.6, price: 22, hue: 140, level: 2, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🫁' },
+  MCF7: { name: 'MCF-7', medium: 'MEM', td: 33, tdRange: '24–80 h', suspension: false, size: 1.2, glcRate: 0.4, price: 30, hue: 280, level: 3, sens: 1, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🎗️' },
+  U2OS: { name: 'U2OS', medium: 'MCCOY', td: 30, tdRange: '25–36 h', suspension: false, size: 0.7, glcRate: 0.5, price: 28, hue: 30, level: 3, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'flat', badge: '🦴' },
+  MDA231: { name: 'MDA-MB-231', medium: 'DMEM', td: 36, tdRange: '25–42 h', suspension: false, size: 0.9, glcRate: 0.65, price: 34, hue: 300, level: 4, sens: 0.8, p53: 'inactive', startPassage: 5, morph: 'spindle', badge: '🎗️' },
+  A375: { name: 'A375', medium: 'DMEM', td: 27, tdRange: '20–34 h', suspension: false, size: 1, glcRate: 0.55, price: 34, hue: 10, level: 4, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'star', badge: '🌑' },
+  U87: { name: 'U87 MG', medium: 'MEM', td: 36, tdRange: '34–39 h', suspension: false, size: 0.7, glcRate: 0.5, price: 38, hue: 250, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠' },
+  A172: { name: 'A172', medium: 'DMEM', td: 42, tdRange: '26–48 h', suspension: false, size: 0.8, glcRate: 0.45, price: 38, hue: 225, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠' },
+  Jurkat: { name: 'Jurkat', medium: 'RPMI', td: 27, tdRange: '25–35 h', suspension: true, size: 1, glcRate: 0.35, price: 40, hue: 50, level: 6, sens: 1, p53: 'inactive', startPassage: 5, morph: 'round', badge: '🩸' },
+  MRC5: { name: 'MRC-5', medium: 'MEM', td: 38, tdRange: '34–45 h', suspension: false, size: 0.45, glcRate: 0.4, price: 60, hue: 40, level: 7, sens: 1.1, p53: 'wt', maxPassage: 28, startPassage: 12, morph: 'spindle', badge: '💉' },
+  IMR90: { name: 'IMR-90', medium: 'MEM', td: 36, tdRange: '30–48 h', suspension: false, size: 0.45, glcRate: 0.4, price: 65, hue: 65, level: 7, sens: 1.1, p53: 'wt', maxPassage: 26, startPassage: 10, morph: 'spindle', badge: '⏳' },
+  HDF: { name: 'HDF', medium: 'DMEM', td: 40, tdRange: '30–48 h', suspension: false, size: 0.4, glcRate: 0.45, price: 75, hue: 15, level: 8, sens: 1.2, p53: 'wt', maxPassage: 18, startPassage: 5, morph: 'spindle', badge: '✋' },
+  HUVEC: { name: 'HUVEC', medium: 'EGM2', td: 36, tdRange: '30–50 h', suspension: false, size: 0.6, glcRate: 0.5, price: 120, hue: 355, level: 9, sens: 1.5, p53: 'wt', maxPassage: 9, startPassage: 2, morph: 'cobblestone', badge: '🫀' },
+  iPSC: { name: 'iPSC', medium: 'MTESR', td: 24, tdRange: '16–36 h', suspension: false, size: 1.6, glcRate: 0.7, price: 220, hue: 170, level: 10, sens: 2, p53: 'wt', startPassage: 25, morph: 'colony', badge: '🌱' },
 };
 export const LINE_ORDER = Object.keys(LINES) as LineId[];
 
@@ -312,6 +316,8 @@ export function mixRecipe(m: MediumId) {
 }
 /** jogadas no mesmo dia de jogo rendem menos: 100%, 100%, 100%, 50%, 50%, 50%, 20%... */
 export const gameMult = (plays: number) => (plays < 3 ? 1 : plays < 6 ? 0.5 : 0.2);
+/** Prêmios dos jogos crescem com o nível para acompanhar os preços (+30% por nível). */
+export const gameLevelMult = (level: number) => 1 + 0.3 * (level - 1);
 export const EARLY_UNLOCK_MULT = 2.5;
 
 SHOP.unshift(...PASSES.map<ShopItem>((p) => ({ id: `pass_${p.id}`, cat: 'passes', price: p.price, level: p.level, inv: `pass_${p.id}`, qty: 1, unit: 'un', special: 'pass' })));

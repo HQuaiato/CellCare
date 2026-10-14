@@ -1,4 +1,4 @@
-import { AGENTS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, MIX_VOLUME, PASSES, SCOPES, SHOP, diff, gameMult, hasScope, levelOf, type PassId } from './data';
+import { AGENTS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, MIX_VOLUME, PASSES, SCOPES, SHOP, diff, gameLevelMult, gameMult, hasScope, levelOf, type PassId } from './data';
 import { VIAL_PREMIUM, addXp, bump, log, m, sellCells } from './econ';
 import { QUESTS } from './quests';
 import { expKey } from './research';
@@ -215,6 +215,7 @@ export function seed(s: GameState, type: FlaskType, millions: number): Msg {
   f.afx = tmp.afx;
   f.contam = sus.contam ? { ...sus.contam } : null;
   f.immortal = sus.immortal;
+  f.lag = LINES[sus.line].suspension ? 8 : 16;
   expose(s, f);
   if (sus.live < 1e4) s.suspension = null;
   return m('ok.seeded', { flask: flaskName(f), p: f.passage });
@@ -273,6 +274,7 @@ export function thaw(s: GameState, vialId: string, type: FlaskType): Msg {
   f.afx = tmp.afx;
   if (vial.contam) f.contam = { type: vial.contam, level: vial.contam === 'mycoplasma' ? 0.3 : 0.1, detected: false };
   f.immortal = vial.immortal;
+  f.lag = 24; // recuperação do congelamento
   expose(s, f);
   addXp(s, 3);
   return m('ok.thawed', { flask: flaskName(f) });
@@ -545,6 +547,7 @@ export function usePass(s: GameState, id: PassId, flaskId?: string): Msg {
       return m('ok.timeSkip', { h });
     }
     case 'confluence':
+      f!.lag = 0;
       f!.live = capacity(f!) * 0.85;
       f!.dead = f!.live * 0.04;
       f!.glucose = MEDIA[f!.medium].glc;
@@ -595,7 +598,14 @@ export function gamePlaysToday(s: GameState, id: GameId) {
 /** Moedas que uma pontuação rende agora (considera o limite e as jogadas do dia). */
 export function gameCoins(s: GameState, id: GameId, score: number) {
   const g = GAMES.find((x) => x.id === id)!;
-  return Math.round(Math.min(g.cap, Math.max(0, score) * g.rate) * gameMult(gamePlaysToday(s, id)) * diff(s).games);
+  const lm = gameLevelMult(levelOf(s.xp));
+  return Math.round(Math.min(g.cap * lm, Math.max(0, score) * g.rate * lm) * gameMult(gamePlaysToday(s, id)) * diff(s).games);
+}
+
+/** Prêmio máximo de uma partida no nível atual. */
+export function gameCap(s: GameState, id: GameId) {
+  const g = GAMES.find((x) => x.id === id)!;
+  return Math.round(g.cap * gameLevelMult(levelOf(s.xp)) * diff(s).games);
 }
 
 export function rewardGame(s: GameState, id: GameId, score: number): Msg {

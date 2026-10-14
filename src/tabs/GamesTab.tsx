@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Info, Paras, fmtMoney } from '../components/ui';
-import { gameCoins, gamePlaysToday, mixMedium, rewardGame } from '../game/actions';
+import { gameCap, gameCoins, gamePlaysToday, mixMedium, rewardGame } from '../game/actions';
 import { GAMES, MIX_VOLUME, gameMult } from '../game/data';
 import { bump } from '../game/econ';
 import { act, getGame, useGame } from '../game/store';
@@ -27,8 +27,7 @@ const COMPONENTS: Record<GameId, (p: { onFinish: Finish }) => JSX.Element> = {
 
 /** Texto do ⓘ / da tela de introdução de cada jogo. */
 function gameInfo(id: GameId) {
-  const g = GAMES.find((x) => x.id === id)!;
-  const reward = id === 'mix' ? t('game.mix.reward', { v: MIX_VOLUME }) : t('games.cap', { c: fmtMoney(g.cap) });
+  const reward = id === 'mix' ? t('game.mix.reward', { v: MIX_VOLUME }) : `${t('games.cap', { c: fmtMoney(gameCap(getGame()!, id)) })} ${t('games.levelBonus')}`;
   return `${t(`game.${id}.desc`)}\n${t(`game.${id}.how`)}\n${reward}`;
 }
 

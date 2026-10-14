@@ -39,6 +39,47 @@ export function phFactor(pH: number) {
 
 export const isMyco = (f: { contam: Flask['contam'] }) => f.contam?.type === 'mycoplasma';
 
+/**
+ * Fatores que mudam a velocidade de proliferação, cada um entre 0 e 1.
+ * Usado na simulação e para mostrar ao jogador por que a cultura está lenta.
+ */
+export function growthFactors(f: Flask) {
+  const L = LINES[f.line];
+  const conf = f.live / capacity(f);
+  const lagLeft = f.lag ?? 0;
+  const out: Record<string, number> = {
+    glucose: f.glucose / (f.glucose + 0.8),
+    ph: phFactor(f.pH),
+    lactate: 1 / (1 + (f.lactate / 25) ** 2),
+    // inibição por contato: quase exponencial até ficar apertado
+    contact: Math.max(0, 1 - conf ** 3),
+    // fase lag: logo depois de semear/descongelar as células ainda estão aderindo e se recuperando
+    lag: lagLeft > 0 ? 0.25 + 0.75 * (1 - lagLeft / 24) ** 2 : 1,
+    // densidade muito baixa: poucas células, pouco sinal parácrino
+    density: conf < 0.05 ? 0.55 + 9 * conf : 1,
+  };
+  if (f.medium !== L.medium) out.medium = 0.55;
+  if (f.transduction) out.selection = 0.4;
+  if (f.mycoTreat > 0) out.treatment = 0.6;
+  if (f.afx) out.ampho = 0.93; // anfotericina é um pouco tóxica
+  if (L.maxPassage && !f.immortal) {
+    // células normais desaceleram ao se aproximar do limite de Hayflick
+    out.passage = f.passage > L.maxPassage ? 0.08 : 1 / (1 + 2 * (f.passage / L.maxPassage) ** 4);
+  }
+  if (f.contam?.type === 'mycoplasma') out.mycoplasma = 1 - 0.35 * f.contam.level;
+  return out;
+}
+
+export function growthRate(f: Flask) {
+  return Object.values(growthFactors(f)).reduce((g, x) => g * x, LN2 / LINES[f.line].td);
+}
+
+/** Tempo de duplicação atual (h) nas condições do frasco; Infinity se parado. */
+export function currentDoubling(f: Flask) {
+  const g = growthRate(f);
+  return g > 1e-6 ? LN2 / g : Infinity;
+}
+
 function stepFlask(s: GameState, f: Flask, dt: number) {
   const L = LINES[f.line];
   const vol = FLASKS[f.type].vol;
@@ -47,18 +88,8 @@ function stepFlask(s: GameState, f: Flask, dt: number) {
 
   f.pH += (eqPH(f.medium, f.lactate, co2Of(s, f)) - f.pH) * Math.min(1, dt / 1.5);
   const conf = f.live / K;
-
-  let g = LN2 / L.td;
-  g *= f.glucose / (f.glucose + 0.8);
-  g *= phFactor(f.pH);
-  g *= 1 / (1 + (f.lactate / 25) ** 2);
-  if (f.medium !== L.medium) g *= 0.55;
-  g *= Math.max(0, 1 - conf ** 3);
-  if (f.transduction) g *= 0.4;
-  if (f.mycoTreat > 0) g *= 0.6;
-  if (f.afx) g *= 0.93; // anfotericina é um pouco tóxica
-  if (L.maxPassage && !f.immortal && f.passage > L.maxPassage) g *= 0.08;
-  if (c?.type === 'mycoplasma') g *= 1 - 0.35 * c.level;
+  const g = growthRate(f);
+  if (f.lag) f.lag = Math.max(0, f.lag - dt);
 
   let d = 0.002;
   if (f.glucose < 0.5) d += (0.04 * (0.5 - f.glucose)) / 0.5;
