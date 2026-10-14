@@ -186,6 +186,27 @@ function markerNucleus(flask: Flask, phase: number, dapi: boolean): string | nul
   return dapi ? '#60a5fa' : null;
 }
 
+/** Campo escuro com aviso: célula viva sem marcador não fluoresce. */
+function drawDark(g: G, text: string) {
+  g.fillStyle = '#05050a';
+  g.fillRect(0, 0, SIZE, SIZE);
+  g.fillStyle = 'rgba(255,255,255,0.75)';
+  g.font = '600 12px system-ui';
+  g.textAlign = 'center';
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if ((cur + ' ' + w).trim().length > 30) {
+      lines.push(cur.trim());
+      cur = w;
+    } else cur += ' ' + w;
+  }
+  lines.push(cur.trim());
+  lines.forEach((ln, i) => g.fillText(ln, R, R - (lines.length - 1) * 8 + i * 16));
+  g.textAlign = 'start';
+}
+
 function drawFluo(g: G, cells: Cell[], morph: Morph, flask: Flask, confocal: boolean) {
   g.fillStyle = '#05050a';
   g.fillRect(0, 0, SIZE, SIZE);
@@ -195,14 +216,6 @@ function drawFluo(g: G, cells: Cell[], morph: Morph, flask: Flask, confocal: boo
     g.save();
     g.translate(c.x, c.y);
     g.rotate(c.rot);
-    if (confocal) {
-      // faloidina (actina) em vermelho contornando a célula
-      if (c.procs.length) drawProcesses(g, c, 'rgba(239,68,68,0.7)');
-      shape(g, c, morph);
-      g.strokeStyle = 'rgba(239,68,68,0.85)';
-      g.lineWidth = 1.2;
-      g.stroke();
-    }
     if (has('LUC')) {
       shape(g, c, morph);
       g.fillStyle = 'rgba(253,224,71,0.18)';
@@ -216,19 +229,21 @@ function drawFluo(g: G, cells: Cell[], morph: Morph, flask: Flask, confocal: boo
         g.fill();
       }
     }
-    const nuc = markerNucleus(flask, c.phase, true)!;
+    const nuc = markerNucleus(flask, c.phase, false);
     const ns = Math.min(c.len, c.wid) * nucSize(morph);
-    g.beginPath();
-    g.ellipse(0, 0, ns * 1.15, ns, 0, 0, Math.PI * 2);
-    g.fillStyle = nuc;
-    if (!confocal) {
-      g.shadowColor = nuc;
-      g.shadowBlur = 7;
+    if (nuc) {
+      g.beginPath();
+      g.ellipse(0, 0, ns * 1.15, ns, 0, 0, Math.PI * 2);
+      g.fillStyle = nuc;
+      if (!confocal) {
+        g.shadowColor = nuc;
+        g.shadowBlur = 7;
+      }
+      g.globalAlpha = confocal ? 0.95 : 0.85;
+      g.fill();
+      g.globalAlpha = 1;
+      g.shadowBlur = 0;
     }
-    g.globalAlpha = confocal ? 0.95 : 0.85;
-    g.fill();
-    g.globalAlpha = 1;
-    g.shadowBlur = 0;
     if (has('53BP1')) {
       g.fillStyle = '#fb7185';
       for (let k = 0; k < 3; k++) {
@@ -405,7 +420,7 @@ function scaleBar(g: G, label: string, color: string) {
   g.fillText(label, SIZE - 84, SIZE - 52);
 }
 
-export function Microscope({ flask, mode }: { flask: Flask; mode: ScopeMode }) {
+export function Microscope({ flask, mode, emptyText }: { flask: Flask; mode: ScopeMode; emptyText: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const L = LINES[flask.line];
   const conf = Math.min(1.05, confluence(flask));
@@ -429,6 +444,7 @@ export function Microscope({ flask, mode }: { flask: Flask; mode: ScopeMode }) {
       g.arc(R, R, R - 2, 0, Math.PI * 2);
       g.clip();
       if (mode === 'phase' || mode === 'timelapse') drawPhase(g, cells, L.morph, flask, t, mode === 'timelapse');
+      else if ((mode === 'fluo' || mode === 'confocal' || mode === 'superres') && flask.markers.length === 0) drawDark(g, emptyText);
       else if (mode === 'fluo' || mode === 'confocal') drawFluo(g, cells, L.morph, flask, mode === 'confocal');
       else if (mode === 'superres') drawSuperRes(g, flask);
       else drawElectron(g, flask);
@@ -449,7 +465,7 @@ export function Microscope({ flask, mode }: { flask: Flask; mode: ScopeMode }) {
     frame(performance.now());
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cells, mode, contamKey, L.morph]);
+  }, [cells, mode, contamKey, L.morph, emptyText]);
 
   return <canvas ref={ref} className="scope" style={{ width: SIZE, height: SIZE }} />;
 }

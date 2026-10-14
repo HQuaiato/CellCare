@@ -34,6 +34,8 @@ export const LESSONS: Lesson[] = [
   { id: 'paper', icon: '📄', when: (s) => (s.stats.papers ?? 0) > 0 },
   { id: 'senescence', icon: '⏳', when: (s) => anyFlask(s, (f) => !!LINES[f.line].maxPassage) },
   { id: 'scope', icon: '🔬', when: (s) => s.equipment.scope > 0 },
+  { id: 'fixation', icon: '🧫', when: (s) => s.equipment.scope > 0 && levelOf(s.xp) >= 2 },
+  { id: 'assays', icon: '💻', when: (s) => levelOf(s.xp) >= 3 || !!s.equipment.computer },
   { id: 'shop', icon: '🛒' },
   { id: 'freezer', icon: '🧊' },
   { id: 'games', icon: '🎮' },

@@ -5,8 +5,10 @@ import { GAMES, MIX_VOLUME, gameMult } from '../game/data';
 import { bump } from '../game/econ';
 import { act, getGame, useGame } from '../game/store';
 import type { GameId, MediumId } from '../game/types';
+import { CentrifugeGame } from '../games/CentrifugeGame';
 import { CountGame } from '../games/CountGame';
 import { DropGame } from '../games/DropGame';
+import { LabelGame } from '../games/LabelGame';
 import { MemoryGame } from '../games/MemoryGame';
 import { MixGame } from '../games/MixGame';
 import { PipetteGame } from '../games/PipetteGame';
@@ -22,6 +24,8 @@ const COMPONENTS: Record<GameId, (p: { onFinish: Finish }) => JSX.Element> = {
   count: CountGame,
   tips: TipsGame,
   pipette: PipetteGame,
+  label: LabelGame,
+  centrifuge: CentrifugeGame,
   mix: MixGame as (p: { onFinish: Finish }) => JSX.Element,
 };
 

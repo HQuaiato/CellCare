@@ -1,4 +1,4 @@
-import type { AgentId, ContamType, Difficulty, FlaskType, GameId, LineId, MarkerId, MediumId, Morph, Readout, ScopeMode } from './types';
+import type { AgentId, AssayId, ContamType, Difficulty, FlaskType, GameId, LineId, MarkerId, MediumId, Morph, Readout, ScopeMode } from './types';
 
 /** 1 minuto real = 1 hora de jogo. Um dia no lab dura 24 minutos. */
 export const OFFLINE_CAP_H = 12;
@@ -100,11 +100,11 @@ export interface MarkerDef {
 }
 
 export const MARKERS: Record<MarkerId, MarkerDef> = {
-  H2B: { name: 'H2B-GFP', bonus: 0.3, price: 250, level: 2, color: '#4ade80' },
-  LUC: { name: 'Luciferase', bonus: 0.4, price: 300, level: 3, color: '#eab308' },
-  '53BP1': { name: '53BP1-mCherry', bonus: 0.6, price: 450, level: 3, color: '#f43f5e' },
-  FUCCI: { name: 'FUCCI', bonus: 0.7, price: 500, level: 4, color: '#f97316' },
-  LC3: { name: 'GFP-LC3', bonus: 0.5, price: 400, level: 5, color: '#22c55e' },
+  H2B: { name: 'H2B-GFP', bonus: 0.6, price: 250, level: 2, color: '#4ade80' },
+  LUC: { name: 'Luciferase', bonus: 0.7, price: 300, level: 3, color: '#eab308' },
+  '53BP1': { name: '53BP1-mCherry', bonus: 1.0, price: 450, level: 3, color: '#f43f5e' },
+  FUCCI: { name: 'FUCCI', bonus: 1.2, price: 500, level: 4, color: '#f97316' },
+  LC3: { name: 'GFP-LC3', bonus: 0.9, price: 400, level: 5, color: '#22c55e' },
 };
 export const MARKER_ORDER = Object.keys(MARKERS) as MarkerId[];
 
@@ -146,8 +146,61 @@ const FINDING_REL: Record<AgentId, Partial<Record<Readout, number>>> = {
   chloroquine: { MTT: 0.3, LC3: 1, H2B: 0.3 },
 };
 
+// ---------------------------------------------------------------- ensaios (fixados, análise e bancada)
+
+export interface AssayDef {
+  /** microscópio mínimo */
+  scope?: ScopeMode;
+  computer?: boolean;
+  needs: Record<string, number>;
+  hours: number;
+  level: number;
+  icon: string;
+  /** peso no impacto do artigo: imagem de fluorescência usa o bônus do microscópio */
+  imaging?: boolean;
+  impact: number;
+}
+
+export const ASSAYS: Record<AssayId, AssayDef> = {
+  DAPI: { scope: 'fluo', needs: { PFA: 1, DAPI: 1 }, hours: 24, level: 2, icon: '🔵', imaging: true, impact: 0.85 },
+  PHAL: { scope: 'fluo', needs: { PFA: 1, phalloidin: 1 }, hours: 24, level: 2, icon: '🔴', imaging: true, impact: 0.85 },
+  NMA: { scope: 'fluo', computer: true, needs: { PFA: 1, DAPI: 1 }, hours: 24, level: 3, icon: '💻', imaging: true, impact: 1.15 },
+  MORPH: { scope: 'fluo', computer: true, needs: { PFA: 1, phalloidin: 1 }, hours: 24, level: 3, icon: '📐', imaging: true, impact: 1.15 },
+  SAGAL: { needs: { xgal: 1 }, hours: 96, level: 3, icon: '🟦', impact: 0.95 },
+  CLONO: { needs: { crystal: 1 }, hours: 240, level: 4, icon: '🟣', impact: 1 },
+  WOUND: { scope: 'timelapse', computer: true, needs: {}, hours: 24, level: 4, icon: '🩹', impact: 1.05 },
+};
+export const ASSAY_ORDER = Object.keys(ASSAYS) as AssayId[];
+export const isAssay = (r: Readout): r is AssayId => r in ASSAYS;
+
+type AgentGroup = 'dna' | 'mitotic' | 'replication' | 'autophagy';
+const AGENT_GROUP: Record<AgentId, AgentGroup> = {
+  cisplatin: 'dna',
+  etoposide: 'dna',
+  doxorubicin: 'dna',
+  radiation: 'dna',
+  temozolomide: 'dna',
+  paclitaxel: 'mitotic',
+  hydroxyurea: 'replication',
+  rapamycin: 'autophagy',
+  chloroquine: 'autophagy',
+};
+const ASSAY_REL: Record<AgentGroup, Record<AssayId, number>> = {
+  dna: { DAPI: 0.5, PHAL: 0.4, NMA: 0.9, MORPH: 0.7, SAGAL: 0.9, CLONO: 0.95, WOUND: 0.4 },
+  mitotic: { DAPI: 0.7, PHAL: 0.8, NMA: 1, MORPH: 0.85, SAGAL: 0.5, CLONO: 0.7, WOUND: 0.6 },
+  replication: { DAPI: 0.4, PHAL: 0.3, NMA: 0.6, MORPH: 0.4, SAGAL: 0.6, CLONO: 0.5, WOUND: 0.3 },
+  autophagy: { DAPI: 0.3, PHAL: 0.5, NMA: 0.4, MORPH: 0.6, SAGAL: 0.4, CLONO: 0.4, WOUND: 0.5 },
+};
+
 /** chave do texto do achado + relevância (0–1) */
 export function finding(agent: AgentId, readout: Readout, line: LineId) {
+  if (isAssay(readout)) {
+    const group = AGENT_GROUP[agent];
+    let rel = ASSAY_REL[group][readout];
+    if (readout === 'WOUND' && line === 'MDA231') rel *= 1.3; // linhagem invasiva, clássica de migração
+    if (agent === 'temozolomide' && (line === 'U87' || line === 'A172')) rel *= 1.3;
+    return { key: `finding.${group}.${readout}`, suffix: null, rel };
+  }
   let rel = FINDING_REL[agent][readout];
   const key = rel === undefined ? 'finding.none' : `finding.${agent}.${readout}`;
   rel ??= 0.2;
@@ -184,7 +237,7 @@ export interface ShopItem {
   inv?: string;
   qty?: number;
   unit?: 'mL' | 'un' | 'doses' | 'tests' | 'aliquot' | 'courses';
-  special?: 'incubator' | 'irradiator' | 'scope' | 'co2' | 'vial' | 'pass';
+  special?: 'incubator' | 'irradiator' | 'scope' | 'co2' | 'vial' | 'pass' | 'computer';
   line?: LineId;
   medium?: MediumId;
   agent?: AgentId;
@@ -198,6 +251,11 @@ export const SHOP: ShopItem[] = [
   { id: 'PBS', cat: 'reagents', price: 15, level: 1, inv: 'PBS', qty: 500, unit: 'mL' },
   { id: 'DMSO', cat: 'reagents', price: 25, level: 1, inv: 'DMSO', qty: 50, unit: 'mL' },
   { id: 'MTT', cat: 'reagents', price: 100, level: 1, inv: 'MTT', qty: 10, unit: 'tests' },
+  { id: 'PFA', cat: 'reagents', price: 40, level: 2, inv: 'PFA', qty: 10, unit: 'tests' },
+  { id: 'DAPI', cat: 'reagents', price: 60, level: 2, inv: 'DAPI', qty: 20, unit: 'tests' },
+  { id: 'phalloidin', cat: 'reagents', price: 150, level: 2, inv: 'phalloidin', qty: 10, unit: 'tests' },
+  { id: 'xgal', cat: 'reagents', price: 120, level: 3, inv: 'xgal', qty: 5, unit: 'tests' },
+  { id: 'crystal', cat: 'reagents', price: 30, level: 4, inv: 'crystal', qty: 10, unit: 'tests' },
   { id: 'penstrep', cat: 'protection', price: 25, level: 1, inv: 'penstrep', qty: 20, unit: 'mL' },
   { id: 'abx_high', cat: 'protection', price: 50, level: 1, inv: 'abx_high', qty: 3, unit: 'doses' },
   { id: 'ampho', cat: 'protection', price: 40, level: 2, inv: 'ampho', qty: 10, unit: 'mL' },
@@ -215,6 +273,7 @@ export const SHOP: ShopItem[] = [
   { id: 'incubator', cat: 'equipment', price: 1200, level: 2, special: 'incubator' },
   { id: 'scope', cat: 'equipment', price: 0, level: 1, special: 'scope' },
   { id: 'irradiator', cat: 'equipment', price: 3500, level: 3, special: 'irradiator' },
+  { id: 'computer', cat: 'equipment', price: 1500, level: 3, special: 'computer' },
 ];
 
 export const DISINFECT_COST = 20;
@@ -274,6 +333,8 @@ export const GAMES: { id: GameId; icon: string; rate: number; cap: number }[] = 
   { id: 'count', icon: '🔢', rate: 1, cap: 60 },
   { id: 'tips', icon: '📦', rate: 2, cap: 110 },
   { id: 'pipette', icon: '💉', rate: 1, cap: 60 },
+  { id: 'label', icon: '🏷️', rate: 2, cap: 100 },
+  { id: 'centrifuge', icon: '🌀', rate: 1, cap: 60 },
   { id: 'mix', icon: '⚗️', rate: 0, cap: 0 },
 ];
 
@@ -348,6 +409,7 @@ export function unlocksAt(level: number): string[] {
     ...SHOP.filter((i) => i.cat === 'equipment' && i.level === level && i.level > 1).map((i) => `@shop.${i.id}`),
     ...(Object.keys(CONTAM) as ContamType[]).filter((c) => CONTAM[c].level === level && level > 1).map((c) => `@unlock.${c}`),
     ...SCOPES.filter((sc) => sc.level === level && level > 1).map((sc) => `@scope.${sc.id}`),
+    ...ASSAY_ORDER.filter((a) => ASSAYS[a].level === level && level > 1).map((a) => `@assay.${a}`),
   ];
 }
 

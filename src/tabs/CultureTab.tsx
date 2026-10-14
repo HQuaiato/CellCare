@@ -172,7 +172,7 @@ export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }
         <div className="culture-left">
           <section className="stage">
             <div className="bubble">{t(`mood.${mood}`)}</div>
-            {mode ? <Microscope flask={f} mode={mode} /> : <CellAvatar flask={f} time={s.time} />}
+            {mode ? <Microscope flask={f} mode={mode} emptyText={t('scope.noFluor')} /> : <CellAvatar flask={f} time={s.time} />}
             <div className="seg scope-seg">
               <button className={!mode ? 'on' : ''} onClick={() => setView('cell')} title={t('culture.cell')}>
                 😊

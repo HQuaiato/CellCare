@@ -7,7 +7,8 @@ import { t } from '../i18n';
 
 const keyLabel = (key: string) => {
   const { line, agent, readout } = parseKey(key);
-  return `${LINES[line].name} + ${t(`agent.${agent}`)} · ${readoutName(readout)}`;
+  const r = readoutName(readout);
+  return `${LINES[line].name} + ${t(`agent.${agent}`)} · ${r.startsWith('@') ? t(r.slice(1)) : r}`;
 };
 
 function paperTitle(p: Paper) {

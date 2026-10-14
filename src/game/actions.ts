@@ -1,4 +1,4 @@
-import { AGENTS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, MIX_VOLUME, PASSES, SCOPES, SHOP, diff, gameLevelMult, gameMult, hasScope, levelOf, type PassId } from './data';
+import { AGENTS, ASSAYS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, MIX_VOLUME, PASSES, SCOPES, SHOP, diff, gameLevelMult, gameMult, hasScope, isAssay, levelOf, type PassId } from './data';
 import { VIAL_PREMIUM, addXp, bump, log, m, sellCells } from './econ';
 import { QUESTS } from './quests';
 import { expKey } from './research';
@@ -378,6 +378,10 @@ export function buy(s: GameState, itemId: string): Msg {
       if (s.equipment.irradiator) fail('err.alreadyOwned');
       s.equipment.irradiator = true;
       break;
+    case 'computer':
+      if (s.equipment.computer) fail('err.alreadyOwned');
+      s.equipment.computer = true;
+      break;
     case 'scope':
       if (!SCOPES[s.equipment.scope + 1]) fail('err.alreadyOwned');
       s.equipment.scope += 1;
@@ -490,7 +494,22 @@ export function experimentQuality(f: Flask) {
   return q;
 }
 
-export const experimentHours = (r: Readout) => (r === 'MTT' ? 48 : 24);
+export const experimentHours = (r: Readout) => (r === 'MTT' ? 48 : isAssay(r) ? ASSAYS[r].hours : 24);
+
+/** O que falta para uma leitura (null = pode fazer). */
+export function readoutBlock(s: GameState, f: Flask, r: Readout): Msg | null {
+  if (r === 'MTT') return have(s, 'MTT') < 1 ? m('exp.needItem', { item: '@inv.MTT' }) : null;
+  if (!isAssay(r)) {
+    if (!hasScope(s.equipment.scope, 'fluo')) return m('err.needFluo');
+    return f.markers.includes(r) ? null : m('err.noMarker');
+  }
+  const A = ASSAYS[r];
+  if (levelOf(s.xp) < A.level) return m('err.levelLocked', { lv: A.level });
+  if (A.scope && !hasScope(s.equipment.scope, A.scope)) return m('exp.needScope', { scope: `@scope.${A.scope}` });
+  if (A.computer && !s.equipment.computer) return m('exp.needComputer');
+  for (const [k, n] of Object.entries(A.needs)) if (have(s, k) < n) return m('exp.needItem', { item: `@inv.${k}` });
+  return null;
+}
 
 export function startExperiment(s: GameState, flaskId: string, agent: AgentId, readout: Readout): Msg {
   const f = getFlask(s, flaskId);
@@ -498,11 +517,9 @@ export function startExperiment(s: GameState, flaskId: string, agent: AgentId, r
   const A = AGENTS[agent];
   if (levelOf(s.xp) < A.level) fail('err.levelLocked', { lv: A.level });
   if (A.needsIrradiator && !s.equipment.irradiator) fail('err.needIrradiator');
-  if (readout !== 'MTT') {
-    if (!hasScope(s.equipment.scope, 'fluo')) fail('err.needFluo');
-    if (!f.markers.includes(readout)) fail('err.noMarker');
-  }
-  const needs: Record<string, number> = {};
+  const block = readoutBlock(s, f, readout);
+  if (block) throw new GameError(block);
+  const needs: Record<string, number> = isAssay(readout) ? { ...ASSAYS[readout].needs } : {};
   if (!A.needsIrradiator) needs[`drug_${agent}`] = 1;
   if (readout === 'MTT') needs.MTT = 1;
   spend(s, needs);

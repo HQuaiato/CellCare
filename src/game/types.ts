@@ -29,11 +29,12 @@ export type AgentId =
   | 'radiation';
 export type FlaskType = 'T25' | 'T75' | 'T175';
 /** Leitura de um experimento: ensaio de viabilidade (MTT) ou imagem de um marcador fluorescente. */
-export type Readout = 'MTT' | MarkerId;
+export type AssayId = 'DAPI' | 'PHAL' | 'NMA' | 'MORPH' | 'SAGAL' | 'CLONO' | 'WOUND';
+export type Readout = 'MTT' | MarkerId | AssayId;
 export type ContamType = 'bacteria' | 'fungus' | 'mycoplasma';
 export type Morph = 'polygonal' | 'spindle' | 'star' | 'round' | 'cobblestone' | 'colony' | 'flat';
 export type ScopeMode = 'phase' | 'fluo' | 'timelapse' | 'confocal' | 'superres' | 'electron';
-export type GameId = 'drop' | 'whack' | 'memory' | 'count' | 'tips' | 'pipette' | 'mix';
+export type GameId = 'drop' | 'whack' | 'memory' | 'count' | 'tips' | 'pipette' | 'label' | 'centrifuge' | 'mix';
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
 export type Mood =
@@ -183,7 +184,7 @@ export interface GameState {
   demand: Record<string, number>;
   inventory: Record<string, number>;
   /** scope = índice do melhor microscópio em SCOPES */
-  equipment: { irradiator: boolean; scope: number };
+  equipment: { irradiator: boolean; scope: number; computer?: boolean };
   boosts: { autoFeedUntil: number; shieldUntil: number; sale2xUntil: number; xp2xUntil: number; lucky: number };
   gamePlays: { day: number; counts: Record<string, number> };
   bestScores: Record<string, number>;

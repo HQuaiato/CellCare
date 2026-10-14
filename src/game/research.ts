@@ -1,4 +1,4 @@
-import { JOURNAL_MIN, LINES, MARKERS, SCOPES, finding } from './data';
+import { ASSAYS, JOURNAL_MIN, LINES, MARKERS, SCOPES, finding, isAssay } from './data';
 import { addXp, bump, log } from './econ';
 import type { AgentId, Experiment, GameState, LineId, Readout } from './types';
 
@@ -11,7 +11,8 @@ export function parseKey(key: string) {
   return { line, agent, readout };
 }
 
-export const readoutName = (r: Readout) => (r === 'MTT' ? 'MTT' : MARKERS[r].name);
+/** Nome da leitura; ensaios viram chave "@assay.X" para serem traduzidos. */
+export const readoutName = (r: Readout) => (r === 'MTT' ? 'MTT' : isAssay(r) ? `@assay.${r}` : MARKERS[r].name);
 
 export function resolveExperiment(s: GameState, e: Experiment) {
   const p = { line: LINES[e.line].name, agent: `@agent.${e.agent}`, readout: readoutName(e.readout) };
@@ -35,7 +36,9 @@ export function resolveExperiment(s: GameState, e: Experiment) {
     return;
   }
 
-  const scopeBoost = e.readout === 'MTT' ? 0.7 : SCOPES[s.equipment.scope].impact;
+  const scopeImpact = SCOPES[s.equipment.scope].impact;
+  const scopeBoost =
+    e.readout === 'MTT' ? 0.7 : isAssay(e.readout) ? ASSAYS[e.readout].impact * (ASSAYS[e.readout].imaging ? scopeImpact : 1) : scopeImpact;
   const impact = f.rel * (0.6 + 0.08 * LINES[e.line].level) * scopeBoost;
   const journal = JOURNAL_MIN.findIndex((min) => impact >= min);
   const reward = Math.round(250 + 2200 * impact);
