@@ -8,6 +8,8 @@ import type { GameState } from '../game/types';
 import { t } from '../i18n';
 
 function owned(s: GameState, item: ShopItem) {
+  if (item.medium && have(s, `cmed_${item.medium}`) > 0)
+    return `${t('shop.owned', { n: fmtNum(have(s, item.inv!), 1), unit: '@unit.mL' })} · ${t('shop.complete', { n: fmtNum(have(s, `cmed_${item.medium}`), 0) })}`;
   if (item.inv) return t('shop.owned', { n: fmtNum(have(s, item.inv), 1), unit: `@unit.${item.unit}` });
   if (item.special === 'irradiator') return s.equipment.irradiator ? `✔ ${t('shop.installed')}` : '';
   if (item.special === 'scope') return t('shop.scopeNow', { name: `@scope.${SCOPES[s.equipment.scope].id}` });

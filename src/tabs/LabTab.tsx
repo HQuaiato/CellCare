@@ -1,6 +1,7 @@
 import { PrefsPicker } from '../components/Prefs';
 import { Info, fmtClock, fmtMoney } from '../components/ui';
-import { claimQuest, setSetting } from '../game/actions';
+import { DifficultyPicker } from '../components/DifficultyPicker';
+import { claimQuest, setDifficulty, setSetting } from '../game/actions';
 import { LESSONS, queueLesson } from '../game/lessons';
 import { QUESTS } from '../game/quests';
 import { act, exportSave, logout, resetGame, useGame } from '../game/store';
@@ -23,6 +24,13 @@ export function LabTab() {
       <section className="card">
         <h3>🧑‍🔬 {s.player}</h3>
         <PrefsPicker />
+        <small className="muted">{t('lab.difficulty')}</small>
+        <DifficultyPicker
+          value={s.difficulty}
+          onChange={(d) => {
+            if (d !== s.difficulty && window.confirm(t('lab.difficultyConfirm', { d: `@difficulty.${d}` }))) act((st) => setDifficulty(st, d));
+          }}
+        />
         <label className="toggle">
           <input type="checkbox" checked={s.settings.tips} onChange={(e) => act((st) => setSetting(st, 'tips', e.target.checked), true)} />
           <span>{t('lab.tips')}</span>

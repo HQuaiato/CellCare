@@ -1,9 +1,9 @@
-import { AGENTS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, PASSES, SCOPES, SHOP, gameMult, hasScope, levelOf, type PassId } from './data';
+import { AGENTS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, MIX_VOLUME, PASSES, SCOPES, SHOP, diff, gameMult, hasScope, levelOf, type PassId } from './data';
 import { VIAL_PREMIUM, addXp, bump, log, m, sellCells } from './econ';
 import { QUESTS } from './quests';
 import { expKey } from './research';
 import { advance, capacity, confluence, eqPH, flaskName, isMyco, viability } from './sim';
-import type { AgentId, ContamType, Flask, FlaskType, GameId, GameState, LineId, MarkerId, MediumId, Msg, Readout } from './types';
+import type { AgentId, ContamType, Difficulty, Flask, FlaskType, GameId, GameState, LineId, MarkerId, MediumId, Msg, Readout } from './types';
 
 export class GameError extends Error {
   constructor(public msg: Msg) {
@@ -19,6 +19,7 @@ export const uid = () => Math.random().toString(36).slice(2, 10);
 /** Chave de tradução para um item de inventário. */
 export function invKey(key: string) {
   if (key.startsWith('med_')) return `medium.${key.slice(4)}`;
+  if (key.startsWith('cmed_')) return `medium.${key.slice(5)}`;
   if (key.startsWith('drug_')) return `agent.${key.slice(5)}`;
   if (key.startsWith('virus_')) return `shop.virusOf`;
   return `inv.${key}`;
@@ -81,6 +82,7 @@ function getFlask(s: GameState, id: string) {
  */
 function expose(s: GameState, f: Flask, base = 1) {
   if (f.contam || s.time < s.boosts.shieldUntil) return;
+  base *= diff(s).contam;
   const lv = levelOf(s.xp);
   const sens = LINES[f.line].sens;
   const inc = s.incubators.find((i) => i.id === f.incubatorId);
@@ -137,6 +139,13 @@ function createFlask(
 
 /** Consome meio completo + aditivos e marca o frasco com os protetores usados. */
 function fillMedium(s: GameState, f: Pick<Flask, 'abx' | 'afx'>, medium: MediumId, vol: number, extra: Record<string, number> = {}) {
+  if (have(s, `cmed_${medium}`) >= vol) {
+    const amB = s.settings.ampho && have(s, 'ampho') >= vol * 0.01 && levelOf(s.xp) >= CONTAM.fungus.level;
+    spend(s, { ...extra, [`cmed_${medium}`]: vol, ...(amB ? { ampho: vol * 0.01 } : {}) });
+    f.abx = true;
+    f.afx = amB;
+    return;
+  }
   const add = additives(s, vol);
   spend(s, { ...extra, ...mediumNeeds(medium, vol), ...add.needs });
   f.abx = add.abx;
@@ -324,8 +333,9 @@ export function treatMyco(s: GameState, id: string): Msg {
 
 export function disinfect(s: GameState, incId: string): Msg {
   const inc = s.incubators.find((i) => i.id === incId) ?? fail('err.noIncubator');
-  if (s.money < DISINFECT_COST) fail('err.noMoney');
-  s.money -= DISINFECT_COST;
+  const cost = Math.round(DISINFECT_COST * diff(s).price);
+  if (s.money < cost) fail('err.noMoney');
+  s.money -= cost;
   inc.spores = 0;
   return m('ok.disinfected', { inc: inc.name });
 }
@@ -334,10 +344,11 @@ export function disinfect(s: GameState, incId: string): Msg {
 
 export function shopPrice(s: GameState, itemId: string) {
   const item = SHOP.find((i) => i.id === itemId)!;
-  if (item.special === 'incubator') return item.price * s.incubators.length;
-  if (item.special === 'scope') return SCOPES[s.equipment.scope + 1]?.price ?? 0;
-  if (item.special === 'vial' && levelOf(s.xp) < item.level) return Math.round(item.price * EARLY_UNLOCK_MULT);
-  return item.price;
+  const k = diff(s).price;
+  if (item.special === 'incubator') return Math.round(item.price * s.incubators.length * k);
+  if (item.special === 'scope') return Math.round((SCOPES[s.equipment.scope + 1]?.price ?? 0) * k);
+  if (item.special === 'vial' && levelOf(s.xp) < item.level) return Math.round(item.price * EARLY_UNLOCK_MULT * k);
+  return Math.round(item.price * k);
 }
 
 /** Nível exigido de verdade (o microscópio depende do próximo upgrade; criotubos podem ser antecipados). */
@@ -584,7 +595,7 @@ export function gamePlaysToday(s: GameState, id: GameId) {
 /** Moedas que uma pontuação rende agora (considera o limite e as jogadas do dia). */
 export function gameCoins(s: GameState, id: GameId, score: number) {
   const g = GAMES.find((x) => x.id === id)!;
-  return Math.round(Math.min(g.cap, Math.max(0, score) * g.rate) * gameMult(gamePlaysToday(s, id)));
+  return Math.round(Math.min(g.cap, Math.max(0, score) * g.rate) * gameMult(gamePlaysToday(s, id)) * diff(s).games);
 }
 
 export function rewardGame(s: GameState, id: GameId, score: number): Msg {
@@ -598,4 +609,35 @@ export function rewardGame(s: GameState, id: GameId, score: number): Msg {
   bump(s, 'games');
   addXp(s, Math.min(10, Math.round(coins / 10)));
   return m('ok.gameReward', { coins });
+}
+
+// ---------------------------------------------------------------- dificuldade e meio feito na bancada
+
+export function setDifficulty(s: GameState, d: Difficulty): Msg {
+  s.difficulty = d;
+  return m('ok.difficulty', { d: `@difficulty.${d}` });
+}
+
+/** Taxa para preparar 500 mL de meio completo: metade do valor de comprar meio + SFB. */
+export function mixFee(s: GameState, medium: MediumId) {
+  const M = MEDIA[medium];
+  const basal = MIX_VOLUME * (1 - M.serum) * (M.price / 500);
+  const fbs = MIX_VOLUME * M.serum * (90 / 50);
+  return Math.round((basal + fbs) * 0.5 * diff(s).price);
+}
+
+/** Resultado do minijogo "Preparar meio": quanto mais preciso, mais meio aproveitável. */
+export function mixMedium(s: GameState, medium: MediumId, accuracy: number): Msg {
+  const fee = mixFee(s, medium);
+  if (s.money < fee) fail('err.noMoney');
+  s.money -= fee;
+  bump(s, 'games');
+  if (accuracy < 0.5) {
+    log(s, 'log.mixFailed', { medium: `@medium.${medium}` }, 'warn');
+    return m('ok.mixFailed');
+  }
+  const ml = accuracy >= 0.95 ? MIX_VOLUME : Math.round(MIX_VOLUME * accuracy);
+  s.inventory[`cmed_${medium}`] = have(s, `cmed_${medium}`) + ml;
+  addXp(s, Math.round(accuracy * 10));
+  return m('ok.mixed', { ml, medium: `@medium.${medium}` });
 }

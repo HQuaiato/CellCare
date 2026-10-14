@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { listProfiles, login } from '../game/store';
 import { t } from '../i18n';
+import type { Difficulty } from '../game/types';
+import { DifficultyPicker } from './DifficultyPicker';
 import { PrefsPicker } from './Prefs';
 
 export function Login() {
   const [name, setName] = useState('');
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
   const profiles = listProfiles();
 
   return (
@@ -18,9 +21,11 @@ export function Login() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            login(name);
+            login(name, difficulty);
           }}
         >
+          <small className="muted">{t('login.difficulty')}</small>
+          <DifficultyPicker value={difficulty} onChange={setDifficulty} />
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('login.name')} maxLength={24} autoFocus />
           <button className="btn primary block" disabled={!name.trim()}>
             {t('login.guest')}

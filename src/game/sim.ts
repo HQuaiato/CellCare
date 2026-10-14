@@ -1,4 +1,4 @@
-import { CONTAM, FLASKS, LINES, MEDIA, STIPEND, SUSPENSION_MAX_DENSITY, hasScope, levelOf } from './data';
+import { CONTAM, FLASKS, LINES, MEDIA, STIPEND, SUSPENSION_MAX_DENSITY, diff, hasScope, levelOf } from './data';
 import { log } from './econ';
 import { resolveExperiment } from './research';
 import type { Flask, GameState, MediumId, Mood } from './types';
@@ -69,7 +69,7 @@ function stepFlask(s: GameState, f: Flask, dt: number) {
   if (conf > 0.95) d += (0.02 * (conf - 0.95)) / 0.05;
   if (c?.type === 'bacteria') d += 0.15 * c.level;
   if (c?.type === 'fungus') d += 0.06 * c.level;
-  d *= L.sens;
+  d *= L.sens * diff(s).death;
 
   const born = f.live * g * dt;
   const died = f.live * Math.min(1, d * dt);
@@ -135,7 +135,7 @@ function sporeSpread(s: GameState, dt: number) {
     if (inc.spores <= 0) continue;
     for (const f of s.flasks) {
       if (f.incubatorId !== inc.id || f.contam) continue;
-      if (Math.random() < 0.002 * inc.spores * dt * (f.afx ? 0.2 : 1)) f.contam = { type: 'fungus', level: 0.02, detected: false };
+      if (Math.random() < 0.002 * inc.spores * dt * diff(s).contam * (f.afx ? 0.2 : 1)) f.contam = { type: 'fungus', level: 0.02, detected: false };
     }
     inc.spores = Math.max(0, inc.spores - 0.01 * dt);
   }
@@ -216,7 +216,7 @@ export function advance(s: GameState, hours: number) {
     const day = Math.floor(s.time / 24);
     if (day > s.lastStipendDay) {
       s.lastStipendDay = day;
-      const amount = STIPEND(levelOf(s.xp));
+      const amount = Math.round(STIPEND(levelOf(s.xp)) * diff(s).stipend);
       s.money += amount;
       log(s, 'log.stipend', { amount }, 'info');
     }

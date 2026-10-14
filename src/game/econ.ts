@@ -1,4 +1,4 @@
-import { LINES, MARKERS, levelOf, unlocksAt } from './data';
+import { LINES, MARKERS, diff, levelOf, unlocksAt } from './data';
 import type { GameState, LineId, LogEntry, MarkerId, Msg } from './types';
 
 export const m = (k: string, p?: Msg['p']): Msg => ({ k, p });
@@ -15,7 +15,7 @@ export function bump(s: GameState, stat: string, n = 1) {
 
 export function addXp(s: GameState, n: number) {
   const before = levelOf(s.xp);
-  s.xp += s.time < s.boosts.xp2xUntil ? n * 2 : n;
+  s.xp += Math.round((s.time < s.boosts.xp2xUntil ? n * 2 : n) * diff(s).xp);
   const after = levelOf(s.xp);
   for (let lv = before + 1; lv <= after; lv++) {
     const u = unlocksAt(lv);
@@ -32,6 +32,7 @@ export function unitPrice(s: GameState, line: LineId, markers: MarkerId[], viabi
   if (passage > 20) p *= Math.max(0.5, 1 - 0.015 * (passage - 20));
   if (L.maxPassage && passage > L.maxPassage) p *= 0.3;
   p *= s.demand[line] ?? 1;
+  p *= diff(s).sell;
   return p;
 }
 

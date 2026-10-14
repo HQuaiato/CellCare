@@ -1,15 +1,16 @@
-import { MEDIA } from './data';
+import { DIFFICULTIES, MEDIA } from './data';
 import { log } from './econ';
 import { eqPH } from './sim';
-import type { GameState } from './types';
+import type { Difficulty, GameState } from './types';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
-export function newGame(player: string): GameState {
+export function newGame(player: string, difficulty: Difficulty = 'normal'): GameState {
   const s: GameState = {
     version: SAVE_VERSION,
     player,
-    money: 250,
+    difficulty,
+    money: DIFFICULTIES[difficulty].startMoney,
     xp: 0,
     time: 8,
     co2Tank: 100,
@@ -86,8 +87,9 @@ export function newGame(player: string): GameState {
 export function migrate(raw: any): GameState | null {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.version === SAVE_VERSION) return raw as GameState;
-  if (raw.version === 3) return v3to4(raw);
-  if (raw.version === 2) return v3to4(v2to3(raw));
+  if (raw.version === 4) return v4to5(raw);
+  if (raw.version === 3) return v4to5(v3to4(raw));
+  if (raw.version === 2) return v4to5(v3to4(v2to3(raw)));
   if (raw.version !== 1) return null;
   const s = raw;
   s.version = SAVE_VERSION;
@@ -116,7 +118,7 @@ export function migrate(raw: any): GameState | null {
   });
   s.log = [];
   s.logSeq = 0;
-  return v3to4(v2to3(s));
+  return v4to5(v3to4(v2to3(s)));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -136,6 +138,13 @@ function v3to4(s: any): GameState {
   // quem já jogava não precisa das lições do começo
   s.lessons = s.time > 48 ? { welcome: 1, care: 1 } : {};
   s.lessonQueue = [];
+  return s as GameState;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function v4to5(s: any): GameState {
+  s.version = SAVE_VERSION;
+  s.difficulty = 'normal';
   log(s, 'log.migrated');
   return s as GameState;
 }

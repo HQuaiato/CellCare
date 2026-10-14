@@ -1,4 +1,4 @@
-import type { AgentId, ContamType, FlaskType, GameId, LineId, MarkerId, MediumId, Morph, Readout, ScopeMode } from './types';
+import type { AgentId, ContamType, Difficulty, FlaskType, GameId, LineId, MarkerId, MediumId, Morph, Readout, ScopeMode } from './types';
 
 /** 1 minuto real = 1 hora de jogo. Um dia no lab dura 24 minutos. */
 export const OFFLINE_CAP_H = 12;
@@ -268,7 +268,48 @@ export const GAMES: { id: GameId; icon: string; rate: number; cap: number }[] = 
   { id: 'whack', icon: '🦠', rate: 2, cap: 120 },
   { id: 'memory', icon: '🧠', rate: 1, cap: 80 },
   { id: 'count', icon: '🔢', rate: 1, cap: 60 },
+  { id: 'tips', icon: '📦', rate: 2, cap: 110 },
+  { id: 'pipette', icon: '💉', rate: 1, cap: 60 },
+  { id: 'mix', icon: '⚗️', rate: 0, cap: 0 },
 ];
+
+// ---------------------------------------------------------------- dificuldade
+
+export interface DifficultyDef {
+  /** risco de contaminação */
+  contam: number;
+  /** preços da loja */
+  price: number;
+  /** valor das vendas */
+  sell: number;
+  /** mortalidade por estresse */
+  death: number;
+  stipend: number;
+  games: number;
+  xp: number;
+  startMoney: number;
+}
+
+export const DIFFICULTIES: Record<Difficulty, DifficultyDef> = {
+  easy: { contam: 0.5, price: 0.8, sell: 1.15, death: 0.8, stipend: 1.5, games: 1.2, xp: 1, startMoney: 400 },
+  normal: { contam: 1, price: 1, sell: 1, death: 1, stipend: 1, games: 1, xp: 1, startMoney: 250 },
+  hard: { contam: 2, price: 1.35, sell: 0.9, death: 1.2, stipend: 0.6, games: 0.9, xp: 1.25, startMoney: 180 },
+  expert: { contam: 3.5, price: 1.75, sell: 0.8, death: 1.4, stipend: 0.3, games: 0.8, xp: 1.5, startMoney: 120 },
+};
+export const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES) as Difficulty[];
+export const diff = (s: { difficulty?: Difficulty }) => DIFFICULTIES[s.difficulty ?? 'normal'];
+
+/** Receita do meio completo feito na bancada (porcentagens de 500 mL). */
+export const MIX_VOLUME = 500;
+export function mixRecipe(m: MediumId) {
+  const serum = MEDIA[m].serum * 100;
+  return [
+    { id: 'basal', pct: 100 - serum - 2 },
+    { id: 'fbs', pct: serum },
+    { id: 'gln', pct: 1 },
+    { id: 'ps', pct: 1 },
+  ];
+}
 /** jogadas no mesmo dia de jogo rendem menos: 100%, 100%, 100%, 50%, 50%, 50%, 20%... */
 export const gameMult = (plays: number) => (plays < 3 ? 1 : plays < 6 ? 0.5 : 0.2);
 export const EARLY_UNLOCK_MULT = 2.5;

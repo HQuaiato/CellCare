@@ -33,7 +33,8 @@ export type Readout = 'MTT' | MarkerId;
 export type ContamType = 'bacteria' | 'fungus' | 'mycoplasma';
 export type Morph = 'polygonal' | 'spindle' | 'star' | 'round' | 'cobblestone' | 'colony' | 'flat';
 export type ScopeMode = 'phase' | 'fluo' | 'timelapse' | 'confocal' | 'superres' | 'electron';
-export type GameId = 'drop' | 'whack' | 'memory' | 'count';
+export type GameId = 'drop' | 'whack' | 'memory' | 'count' | 'tips' | 'pipette' | 'mix';
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
 export type Mood =
   | 'happy'
@@ -164,6 +165,7 @@ export interface LogEntry extends Msg {
 export interface GameState {
   version: number;
   player: string;
+  difficulty: Difficulty;
   money: number;
   xp: number;
   time: number;

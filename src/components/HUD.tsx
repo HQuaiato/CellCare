@@ -1,6 +1,7 @@
 import { SPEEDS, levelProgress } from '../game/data';
 import { act, useGame } from '../game/store';
 import { t } from '../i18n';
+import { difficultyIcon } from './DifficultyPicker';
 import { fmtClock, fmtMoney } from './ui';
 
 const SPEED_ICON: Record<number, string> = { 0: '⏸', 1: '▶', 4: '⏩' };
@@ -12,7 +13,7 @@ export function HUD() {
     <header className="hud">
       <div className="hud-row">
         <div className="brand">
-          🧫 <b>CellCare</b>
+          🧫 <b>CellCare</b> {s.difficulty !== 'normal' && <span title={t(`difficulty.${s.difficulty}`)}>{difficultyIcon(s.difficulty)}</span>}
         </div>
         <div className="money" title={t('ui.currencyName')}>
           {fmtMoney(s.money)}

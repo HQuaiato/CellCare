@@ -1,37 +1,52 @@
 import { useState } from 'react';
 import { Info, Paras, fmtMoney } from '../components/ui';
+import { gameCoins, gamePlaysToday, mixMedium, rewardGame } from '../game/actions';
+import { GAMES, MIX_VOLUME, gameMult } from '../game/data';
 import { bump } from '../game/econ';
-import { gameCoins, gamePlaysToday, rewardGame } from '../game/actions';
-import { GAMES, gameMult } from '../game/data';
 import { act, getGame, useGame } from '../game/store';
-import type { GameId } from '../game/types';
+import type { GameId, MediumId } from '../game/types';
 import { CountGame } from '../games/CountGame';
 import { DropGame } from '../games/DropGame';
 import { MemoryGame } from '../games/MemoryGame';
+import { MixGame } from '../games/MixGame';
+import { PipetteGame } from '../games/PipetteGame';
+import { TipsGame } from '../games/TipsGame';
 import { WhackGame } from '../games/WhackGame';
 import { t } from '../i18n';
 
-const COMPONENTS: Record<GameId, (p: { onFinish: (score: number) => void }) => JSX.Element> = {
+type Finish = (score: number, extra?: { medium: MediumId }) => void;
+const COMPONENTS: Record<GameId, (p: { onFinish: Finish }) => JSX.Element> = {
   drop: DropGame,
   whack: WhackGame,
   memory: MemoryGame,
   count: CountGame,
+  tips: TipsGame,
+  pipette: PipetteGame,
+  mix: MixGame as (p: { onFinish: Finish }) => JSX.Element,
 };
+
+/** Texto do ⓘ / da tela de introdução de cada jogo. */
+function gameInfo(id: GameId) {
+  const g = GAMES.find((x) => x.id === id)!;
+  const reward = id === 'mix' ? t('game.mix.reward', { v: MIX_VOLUME }) : t('games.cap', { c: fmtMoney(g.cap) });
+  return `${t(`game.${id}.desc`)}\n${t(`game.${id}.how`)}\n${reward}`;
+}
 
 export function GamesTab() {
   const s = useGame();
   const [playing, setPlaying] = useState<GameId | null>(null);
   const [round, setRound] = useState(0);
-  const [result, setResult] = useState<{ score: number; coins: number } | null>(null);
+  const [result, setResult] = useState<{ score: number; line: string } | null>(null);
   const [intro, setIntro] = useState(false);
 
   if (playing) {
     const Game = COMPONENTS[playing];
+    const icon = GAMES.find((g) => g.id === playing)!.icon;
     return (
       <div className="stack game-stage">
         <div className="row between">
           <h3>
-            {GAMES.find((g) => g.id === playing)!.icon} {t(`game.${playing}`)} <Info k={`game.${playing}.how`} title={t(`game.${playing}`)} />
+            {icon} {t(`game.${playing}`)} <Info text={gameInfo(playing)} title={t(`game.${playing}`)} />
           </h3>
           <button
             className="btn small"
@@ -44,13 +59,9 @@ export function GamesTab() {
           </button>
         </div>
         {intro ? (
-          <section className="card center game-intro">
-            <div className="big">{GAMES.find((g) => g.id === playing)!.icon}</div>
-            <Paras
-              text={`${t(`game.${playing}.desc`)}
-${t(`game.${playing}.how`)}
-${t('games.cap', { c: fmtMoney(GAMES.find((g) => g.id === playing)!.cap) })}`}
-            />
+          <section className="card game-intro">
+            <div className="big">{icon}</div>
+            <Paras text={gameInfo(playing)} />
             <button
               className="btn primary block"
               onClick={() => {
@@ -64,9 +75,9 @@ ${t('games.cap', { c: fmtMoney(GAMES.find((g) => g.id === playing)!.cap) })}`}
           </section>
         ) : result ? (
           <section className="card center result">
-            <div className="big">🎉</div>
-            <h3>{t('game.score', { n: result.score })}</h3>
-            <p className="coins">+ {fmtMoney(result.coins)}</p>
+            <div className="big">{playing === 'mix' && result.score < 50 ? '😬' : '🎉'}</div>
+            <h3>{playing === 'mix' ? t('game.mix.accuracy', { n: result.score }) : t('game.score', { n: result.score })}</h3>
+            <p className="coins">{result.line}</p>
             <div className="row center-row">
               <button
                 className="btn primary"
@@ -91,10 +102,17 @@ ${t('games.cap', { c: fmtMoney(GAMES.find((g) => g.id === playing)!.cap) })}`}
         ) : (
           <Game
             key={round}
-            onFinish={(score) => {
+            onFinish={(score, extra) => {
+              if (playing === 'mix' && extra) {
+                const before = getGame()!.inventory[`cmed_${extra.medium}`] ?? 0;
+                if (!act((st) => mixMedium(st, extra.medium, score / 100), true)) return;
+                const ml = (getGame()!.inventory[`cmed_${extra.medium}`] ?? 0) - before;
+                setResult({ score, line: ml > 0 ? `+ ${ml} mL ${t(`medium.${extra.medium}.short`)}` : t('ok.mixFailed') });
+                return;
+              }
               const coins = gameCoins(getGame()!, playing, score);
               act((st) => rewardGame(st, playing, score), true);
-              setResult({ score, coins });
+              setResult({ score, line: `+ ${fmtMoney(coins)}` });
             }}
           />
         )}
@@ -112,15 +130,16 @@ ${t('games.cap', { c: fmtMoney(GAMES.find((g) => g.id === playing)!.cap) })}`}
           const plays = gamePlaysToday(s, g.id);
           const mult = gameMult(plays);
           return (
-            <section key={g.id} className="card game-card">
+            <section key={g.id} className={`card game-card ${g.id === 'mix' ? 'workshop' : ''}`}>
               <div className="game-icon">{g.icon}</div>
               <div className="grow">
                 <h3>
-                  {t(`game.${g.id}`)}{' '}
-                  <Info text={`${t(`game.${g.id}.desc`)}\n${t(`game.${g.id}.how`)}\n${t('games.cap', { c: fmtMoney(g.cap) })}`} title={t(`game.${g.id}`)} />
+                  {t(`game.${g.id}`)} <Info text={gameInfo(g.id)} title={t(`game.${g.id}`)} />
                 </h3>
                 <p className="small">
-                  🏆 {s.bestScores[g.id] ?? 0} · {t('games.today', { n: plays })} · {t('games.mult', { pct: Math.round(mult * 100) })}
+                  {g.id === 'mix'
+                    ? t('game.mix.cardLine')
+                    : `🏆 ${s.bestScores[g.id] ?? 0} · ${t('games.today', { n: plays })} · ${t('games.mult', { pct: Math.round(mult * 100) })}`}
                 </p>
               </div>
               <button

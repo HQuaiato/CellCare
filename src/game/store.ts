@@ -7,7 +7,7 @@ import { checkLessons } from './lessons';
 import { migrate, newGame } from './newgame';
 import { lastProfile, localBackend } from './save';
 import { advance } from './sim';
-import type { GameState, Msg } from './types';
+import type { Difficulty, GameState, Msg } from './types';
 
 type Listener = () => void;
 
@@ -118,11 +118,11 @@ function tick() {
   if (++ticks % 10 === 0) persist();
 }
 
-export function login(profile: string) {
+export function login(profile: string, difficulty: Difficulty = 'normal') {
   const name = profile.trim().slice(0, 24);
   if (!name) return;
   let s = migrate(backend.load(name));
-  if (!s) s = newGame(name);
+  if (!s) s = newGame(name, difficulty);
   else {
     const away = Math.min(((Date.now() - s.lastReal) / 60000) * s.speed, OFFLINE_CAP_H);
     if (away > 0.5) log(s, 'log.away', { h: Math.round(away * 10) / 10 });
@@ -147,8 +147,9 @@ export function logout() {
 export function resetGame() {
   if (!state) return;
   const name = state.player;
+  const d = state.difficulty;
   backend.remove(name);
-  login(name);
+  login(name, d);
 }
 
 export function listProfiles() {

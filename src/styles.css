@@ -1578,3 +1578,222 @@ p.bullet {
   text-align: center;
   font-size: 3rem;
 }
+
+/* ---------------------------------------------------------------- v0.5: dificuldade e jogos de bancada */
+
+.diff-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+}
+.login-card form small {
+  display: block;
+  margin-top: 12px;
+}
+.workshop {
+  background: linear-gradient(180deg, var(--card), #f0fdf4);
+}
+/* ponteiras */
+.tip-box {
+  width: 100%;
+  max-width: 360px;
+  border: 4px solid;
+  border-radius: 14px;
+  background: #f8fafc;
+  padding: 10px;
+  position: relative;
+}
+.tip-box-label {
+  position: absolute;
+  top: -12px;
+  left: 12px;
+  color: #fff;
+  font-weight: 900;
+  font-size: 0.75rem;
+  padding: 2px 10px;
+  border-radius: 99px;
+}
+.tip-holes {
+  display: grid;
+  gap: 6px;
+}
+.hole {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 0;
+  background: radial-gradient(circle at 50% 40%, #334155, #64748b);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: visible;
+}
+.hole.full {
+  background: radial-gradient(circle at 50% 40%, #475569, #94a3b8);
+}
+.hole svg {
+  height: 120%;
+  margin-top: -40%;
+}
+.tip-tray {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  padding: 12px;
+  background: var(--soft2);
+  border-radius: 16px;
+  min-height: 64px;
+  width: 100%;
+  max-width: 360px;
+  touch-action: none;
+}
+.loose-tip {
+  cursor: grab;
+  touch-action: none;
+  padding: 4px;
+  border-radius: 8px;
+}
+.loose-tip.sel {
+  background: var(--soft);
+  outline: 2px solid var(--primary);
+}
+.tip-flash {
+  font-weight: 900;
+  color: var(--primary);
+  animation: popin 0.2s;
+}
+/* pipeta */
+.pipette-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.pipette-target {
+  font-size: 1.05rem;
+}
+.pipette-tube {
+  position: relative;
+  width: 54px;
+  height: 220px;
+  border: 3px solid #94a3b8;
+  border-radius: 10px 10px 26px 26px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+.pipette-liquid {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  opacity: 0.85;
+}
+.pipette-mark {
+  position: absolute;
+  left: -4px;
+  right: -4px;
+  height: 3px;
+  background: #ef4444;
+}
+.pipette-read {
+  font: 800 1.3rem ui-monospace, monospace;
+}
+.pipette-hold {
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  padding: 14px 18px;
+}
+/* preparar meio */
+.mix {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  align-items: stretch;
+}
+.mix-recipe {
+  background: #fffbeb;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.mix-pcts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.88rem;
+  margin-top: 4px;
+}
+.mix-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+}
+.mix-bottle {
+  position: relative;
+  width: 70px;
+  height: 200px;
+  border: 3px solid #94a3b8;
+  border-radius: 12px 12px 18px 18px;
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: hidden;
+  background: #f8fafc;
+  flex: none;
+}
+.mix-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-top: 2px dashed #ef4444;
+}
+.mix-total {
+  position: absolute;
+  top: 4px;
+  width: 100%;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+.mix-rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mix-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mix-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.mix-name i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.mix-steps {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.mix-steps button {
+  border: 0;
+  background: var(--soft);
+  border-radius: 8px;
+  padding: 4px 7px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.mix-steps b {
+  min-width: 56px;
+  text-align: center;
+  font-size: 0.88rem;
+}
