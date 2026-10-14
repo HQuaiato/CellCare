@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Info, fmtMoney } from '../components/ui';
+import { Info, Paras, fmtMoney } from '../components/ui';
+import { bump } from '../game/econ';
 import { gameCoins, gamePlaysToday, rewardGame } from '../game/actions';
 import { GAMES, gameMult } from '../game/data';
 import { act, getGame, useGame } from '../game/store';
@@ -22,6 +23,7 @@ export function GamesTab() {
   const [playing, setPlaying] = useState<GameId | null>(null);
   const [round, setRound] = useState(0);
   const [result, setResult] = useState<{ score: number; coins: number } | null>(null);
+  const [intro, setIntro] = useState(false);
 
   if (playing) {
     const Game = COMPONENTS[playing];
@@ -41,7 +43,26 @@ export function GamesTab() {
             ✕ {t('game.exit')}
           </button>
         </div>
-        {result ? (
+        {intro ? (
+          <section className="card center game-intro">
+            <div className="big">{GAMES.find((g) => g.id === playing)!.icon}</div>
+            <Paras
+              text={`${t(`game.${playing}.desc`)}
+${t(`game.${playing}.how`)}
+${t('games.cap', { c: fmtMoney(GAMES.find((g) => g.id === playing)!.cap) })}`}
+            />
+            <button
+              className="btn primary block"
+              onClick={() => {
+                act((st) => bump(st, `intro_${playing}`), true);
+                setIntro(false);
+                setRound(round + 1);
+              }}
+            >
+              ▶ {t('game.start')}
+            </button>
+          </section>
+        ) : result ? (
           <section className="card center result">
             <div className="big">🎉</div>
             <h3>{t('game.score', { n: result.score })}</h3>
@@ -107,6 +128,7 @@ export function GamesTab() {
                 onClick={() => {
                   setPlaying(g.id);
                   setResult(null);
+                  setIntro(!s.stats[`intro_${g.id}`]);
                   setRound(round + 1);
                 }}
               >

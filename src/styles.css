@@ -1569,3 +1569,12 @@ p.bullet {
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+.game-intro {
+  text-align: left;
+  line-height: 1.5;
+}
+.game-intro .big {
+  text-align: center;
+  font-size: 3rem;
+}

@@ -749,6 +749,7 @@ const pt = {
   "lesson.passes.body": "Passes são atalhos: acelerar o tempo, pular para a confluência, ligar um robô de meio, garantir um experimento... Compre com CellCoins e use quando quiser.",
   "lesson.research.title": "Pesquisa",
   "lesson.research.body": "Aqui você acompanha os experimentos em andamento, as réplicas de cada projeto e suas publicações. Publicar é a melhor forma de ganhar XP e subir de nível.",
+  "game.start": "Começar",
 };
 
 export default pt;

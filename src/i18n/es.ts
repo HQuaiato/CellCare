@@ -733,6 +733,7 @@ const es: Dict = {
   "lesson.passes.body": "Los pases son atajos: acelerar el tiempo, saltar a la confluencia, encender un robot de medio, asegurar un experimento... Cómpralos con CellCoins y úsalos cuando quieras.",
   "lesson.research.title": "Investigación",
   "lesson.research.body": "Aquí sigues los experimentos en curso, las réplicas de cada proyecto y tus publicaciones. Publicar es la mejor forma de ganar XP y subir de nivel.",
+  "game.start": "Empezar",
 };
 
 export default es;

@@ -733,6 +733,7 @@ const en: Dict = {
   "lesson.passes.body": "Passes are shortcuts: speed up time, jump to confluence, switch on a medium robot, guarantee an experiment... Buy them with CellCoins and use them whenever you like.",
   "lesson.research.title": "Research",
   "lesson.research.body": "Here you follow running experiments, the replicates of each project and your publications. Publishing is the best way to earn XP and level up.",
+  "game.start": "Start",
 };
 
 export default en;
