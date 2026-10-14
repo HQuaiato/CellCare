@@ -1,4 +1,4 @@
-import { CONTAM, FLASKS, LINES, MEDIA, STIPEND, SUSPENSION_MAX_DENSITY, levelOf } from './data';
+import { CONTAM, FLASKS, LINES, MEDIA, STIPEND, SUSPENSION_MAX_DENSITY, hasScope, levelOf } from './data';
 import { log } from './econ';
 import { resolveExperiment } from './research';
 import type { Flask, GameState, MediumId, Mood } from './types';
@@ -57,7 +57,7 @@ function stepFlask(s: GameState, f: Flask, dt: number) {
   if (f.transduction) g *= 0.4;
   if (f.mycoTreat > 0) g *= 0.6;
   if (f.afx) g *= 0.93; // anfotericina é um pouco tóxica
-  if (L.maxPassage && f.passage > L.maxPassage) g *= 0.08;
+  if (L.maxPassage && !f.immortal && f.passage > L.maxPassage) g *= 0.08;
   if (c?.type === 'mycoplasma') g *= 1 - 0.35 * c.level;
 
   let d = 0.002;
@@ -95,7 +95,8 @@ function stepFlask(s: GameState, f: Flask, dt: number) {
       const inc = s.incubators.find((i) => i.id === f.incubatorId);
       if (inc) inc.spores = Math.min(1, inc.spores + 0.02 * c.level * dt);
     }
-    if (!c.detected && c.type !== 'mycoplasma' && c.level >= 0.15) {
+    // com time-lapse você vê a contaminação mais cedo
+    if (!c.detected && c.type !== 'mycoplasma' && c.level >= (hasScope(s.equipment.scope, 'timelapse') ? 0.07 : 0.15)) {
       c.detected = true;
       log(s, 'log.contamFound', { flask: flaskName(f), type: `@contam.${c.type}` }, 'bad');
     }
@@ -129,7 +130,7 @@ function stepFlask(s: GameState, f: Flask, dt: number) {
 
 /** Esporos no ar contaminam vizinhos de estufa. */
 function sporeSpread(s: GameState, dt: number) {
-  if (levelOf(s.xp) < CONTAM.fungus.level) return;
+  if (levelOf(s.xp) < CONTAM.fungus.level || s.time < s.boosts.shieldUntil) return;
   for (const inc of s.incubators) {
     if (inc.spores <= 0) continue;
     for (const f of s.flasks) {
@@ -138,6 +139,19 @@ function sporeSpread(s: GameState, dt: number) {
     }
     inc.spores = Math.max(0, inc.spores - 0.01 * dt);
   }
+}
+
+/** Passe "robô de meio": troca o meio de graça quando precisa e não deixa o CO₂ acabar. */
+function robotFeed(s: GameState) {
+  for (const f of s.flasks) {
+    if (f.glucose < 4 || f.lactate > 12 || f.ammonia > 2) {
+      f.glucose = MEDIA[f.medium].glc;
+      f.lactate = 0;
+      f.ammonia = 0;
+      f.dead *= LINES[f.line].suspension ? 0.6 : 0.15;
+    }
+  }
+  s.co2Tank = Math.max(s.co2Tank, 10);
 }
 
 export function flaskName(f: Flask) {
@@ -160,7 +174,7 @@ export function flaskMood(f: Flask): Mood {
   if (f.mycoTreat > 0) return 'treating';
   if (c?.detected && c.type === 'mycoplasma') return 'mycoplasma';
   if (f.transduction) return 'transducing';
-  if (L.maxPassage && f.passage > L.maxPassage) return 'senescent';
+  if (L.maxPassage && !f.immortal && f.passage > L.maxPassage) return 'senescent';
   if (v < 0.8) return 'sick';
   if (confluence(f) < 0.12) return 'lonely';
   return 'happy';
@@ -177,6 +191,7 @@ export function advance(s: GameState, hours: number) {
 
     for (const f of s.flasks) stepFlask(s, f, dt);
     sporeSpread(s, dt);
+    if (s.time < s.boosts.autoFeedUntil) robotFeed(s);
 
     if (s.suspension) {
       const lost = s.suspension.live * 0.03 * dt;

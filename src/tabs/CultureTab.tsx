@@ -5,12 +5,13 @@ import { Microscope } from '../components/Microscope';
 import { QuestCard } from '../components/QuestCard';
 import { Bar, Empty, Info, fmtCells, fmtNum, pct, type Tone } from '../components/ui';
 import { askHelp, canAskHelp, discardFlask, feed, have, mediumNeeds, passage, testMyco, treatContam, treatMyco } from '../game/actions';
-import { CONTAM, FLASKS, LINES, MEDIA, levelOf } from '../game/data';
+import { CONTAM, FLASKS, LINES, MEDIA, SCOPES, hasScope, levelOf } from '../game/data';
 import { capacity, co2Of, confluence, flaskMood, flaskName, viability } from '../game/sim';
 import { act, useGame } from '../game/store';
-import type { Flask, GameState } from '../game/types';
+import type { Flask, GameState, ScopeMode } from '../game/types';
 import { t } from '../i18n';
 import { ExperimentModal } from '../modals/ExperimentModal';
+import { PassesModal } from '../modals/PassesModal';
 import { TransductionModal } from '../modals/TransductionModal';
 
 const tone = (bad: boolean, warn: boolean): Tone => (bad ? 'bad' : warn ? 'warn' : 'good');
@@ -34,6 +35,29 @@ function HelpCard({ s }: { s: GameState }) {
       <p className="small">{t('help.text')}</p>
       <button className="btn primary block" onClick={() => act(askHelp)}>
         {t('help.button')}
+      </button>
+    </section>
+  );
+}
+
+/** Passes ativos + botão para usar passes. */
+function BoostBar({ s, onOpen }: { s: GameState; onOpen: () => void }) {
+  const b = s.boosts;
+  const active = [
+    b.autoFeedUntil > s.time && `🤖 ${Math.ceil(b.autoFeedUntil - s.time)} h`,
+    b.shieldUntil > s.time && `🛡️ ${Math.ceil(b.shieldUntil - s.time)} h`,
+    b.sale2xUntil > s.time && `🏷️ ×2 ${Math.ceil(b.sale2xUntil - s.time)} h`,
+    b.xp2xUntil > s.time && `☕ XP×2 ${Math.ceil(b.xp2xUntil - s.time)} h`,
+    b.lucky > 0 && `🍀 ×${b.lucky}`,
+  ].filter(Boolean) as string[];
+  const owned = Object.entries(s.inventory).filter(([k, v]) => k.startsWith('pass_') && v > 0).reduce((n, [, v]) => n + v, 0);
+  return (
+    <section className="card boostbar">
+      <div className="badges grow">
+        {active.length ? active.map((a) => <span key={a} className="badge-pill">{a}</span>) : <span className="muted small">{t('passes.none')}</span>}
+      </div>
+      <button className="btn small gold" onClick={onOpen}>
+        ⚡ {t('passes.open', { n: owned })}
       </button>
     </section>
   );
@@ -71,9 +95,8 @@ function ContamPanel({ f, s }: { f: Flask; s: GameState }) {
 
 export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }) {
   const s = useGame();
-  const [view, setView] = useState<'cell' | 'scope'>('cell');
-  const [fluo, setFluo] = useState(false);
-  const [modal, setModal] = useState<null | 'exp' | 'trans'>(null);
+  const [view, setView] = useState<'cell' | ScopeMode>('cell');
+  const [modal, setModal] = useState<null | 'exp' | 'trans' | 'passes'>(null);
   const f = s.flasks.find((x) => x.id === s.selectedFlaskId) ?? s.flasks[0];
   const lv = levelOf(s.xp);
 
@@ -108,7 +131,8 @@ export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }
   const feedLabel = Object.entries(needs)
     .map(([k, n]) => `${fmtNum(n)} mL ${k === 'FBS' ? t('inv.FBS') : t(`medium.${f.medium}.short`)}`)
     .join(' + ');
-  const canFluo = s.equipment.fluo && f.markers.length > 0;
+  const modes = SCOPES.slice(0, s.equipment.scope + 1).map((x) => x.id);
+  const mode = view === 'cell' || !modes.includes(view) ? null : view;
 
   return (
     <div className="culture">
@@ -122,21 +146,19 @@ export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }
         <div className="culture-left">
           <section className="stage">
             <div className="bubble">{t(`mood.${mood}`)}</div>
-            {view === 'cell' ? <CellAvatar flask={f} time={s.time} /> : <Microscope flask={f} fluo={fluo && canFluo} />}
-            <div className="seg">
-              <button className={view === 'cell' ? 'on' : ''} onClick={() => setView('cell')}>
+            {mode ? <Microscope flask={f} mode={mode} /> : <CellAvatar flask={f} time={s.time} />}
+            <div className="seg scope-seg">
+              <button className={!mode ? 'on' : ''} onClick={() => setView('cell')}>
                 😊 {t('culture.cell')}
               </button>
-              <button className={view === 'scope' ? 'on' : ''} onClick={() => setView('scope')}>
-                🔬 {t('culture.scope')}
-              </button>
-              {view === 'scope' && (
-                <button className={fluo && canFluo ? 'on fluo' : ''} disabled={!canFluo} title={t(s.equipment.fluo ? 'culture.noMarker' : 'culture.needFluo')} onClick={() => setFluo(!fluo)}>
-                  ✨ {t('culture.fluo')}
+              {modes.map((md) => (
+                <button key={md} className={mode === md ? `on mode-${md}` : ''} onClick={() => setView(md)} title={t(`scope.${md}`)}>
+                  {t(`scope.${md}.icon`)} {t(`scope.${md}.short`)}
                 </button>
-              )}
+              ))}
             </div>
-            {view === 'scope' && <p className="muted small center">{t('culture.scopeHint')}</p>}
+            {mode && <p className="muted small center">{t(`scope.${mode}.hint`)}</p>}
+            {!hasScope(s.equipment.scope, 'electron') && <p className="muted small center">{t('culture.scopeUpgrade')}</p>}
           </section>
 
           <section className="card info">
@@ -164,6 +186,7 @@ export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }
         <div className="culture-right">
           <HelpCard s={s} />
           <QuestCard />
+          <BoostBar s={s} onOpen={() => setModal('passes')} />
           <ContamPanel f={f} s={s} />
 
           <section className="card stats">
@@ -245,6 +268,7 @@ export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }
 
       {modal === 'exp' && <ExperimentModal flask={f} onClose={() => setModal(null)} />}
       {modal === 'trans' && <TransductionModal flask={f} onClose={() => setModal(null)} />}
+      {modal === 'passes' && <PassesModal flask={f} onClose={() => setModal(null)} />}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import type { AgentId, ContamType, FlaskType, LineId, MarkerId, MediumId, Readout } from './types';
+import type { AgentId, ContamType, FlaskType, GameId, LineId, MarkerId, MediumId, Morph, Readout, ScopeMode } from './types';
 
 /** 1 minuto real = 1 hora de jogo. Um dia no lab dura 24 minutos. */
 export const OFFLINE_CAP_H = 12;
@@ -60,25 +60,28 @@ export interface LineDef {
   p53: 'wt' | 'inactive';
   maxPassage?: number;
   startPassage: number;
+  /** morfologia: define o desenho da célula e a imagem no microscópio */
+  morph: Morph;
+  badge: string;
 }
 
 export const LINES: Record<LineId, LineDef> = {
-  L929: { name: 'L929', medium: 'MEM', td: 24, suspension: false, size: 1.2, glcRate: 0.45, price: 6, hue: 95, level: 1, sens: 0.5, p53: 'wt', startPassage: 10 },
-  HeLa: { name: 'HeLa', medium: 'DMEM', td: 24, suspension: false, size: 1, glcRate: 0.6, price: 15, hue: 330, level: 1, sens: 0.7, p53: 'inactive', startPassage: 5 },
-  HEK293T: { name: 'HEK293T', medium: 'DMEM', td: 20, suspension: false, size: 1.4, glcRate: 0.55, price: 20, hue: 200, level: 2, sens: 1.1, p53: 'inactive', startPassage: 5 },
-  A549: { name: 'A549', medium: 'F12K', td: 22, suspension: false, size: 1, glcRate: 0.6, price: 22, hue: 140, level: 2, sens: 0.8, p53: 'wt', startPassage: 5 },
-  MCF7: { name: 'MCF-7', medium: 'MEM', td: 36, suspension: false, size: 1.2, glcRate: 0.4, price: 30, hue: 280, level: 3, sens: 1, p53: 'wt', startPassage: 5 },
-  U2OS: { name: 'U2OS', medium: 'MCCOY', td: 30, suspension: false, size: 0.7, glcRate: 0.5, price: 28, hue: 30, level: 3, sens: 0.9, p53: 'wt', startPassage: 5 },
-  MDA231: { name: 'MDA-MB-231', medium: 'DMEM', td: 32, suspension: false, size: 0.9, glcRate: 0.65, price: 34, hue: 300, level: 4, sens: 0.8, p53: 'inactive', startPassage: 5 },
-  A375: { name: 'A375', medium: 'DMEM', td: 22, suspension: false, size: 1, glcRate: 0.55, price: 34, hue: 10, level: 4, sens: 0.8, p53: 'wt', startPassage: 5 },
-  U87: { name: 'U87 MG', medium: 'MEM', td: 34, suspension: false, size: 0.7, glcRate: 0.5, price: 38, hue: 250, level: 5, sens: 0.9, p53: 'wt', startPassage: 5 },
-  A172: { name: 'A172', medium: 'DMEM', td: 38, suspension: false, size: 0.8, glcRate: 0.45, price: 38, hue: 225, level: 5, sens: 0.9, p53: 'wt', startPassage: 5 },
-  Jurkat: { name: 'Jurkat', medium: 'RPMI', td: 28, suspension: true, size: 1, glcRate: 0.35, price: 40, hue: 50, level: 6, sens: 1, p53: 'inactive', startPassage: 5 },
-  MRC5: { name: 'MRC-5', medium: 'MEM', td: 30, suspension: false, size: 0.45, glcRate: 0.4, price: 60, hue: 40, level: 7, sens: 1.1, p53: 'wt', maxPassage: 28, startPassage: 12 },
-  IMR90: { name: 'IMR-90', medium: 'MEM', td: 32, suspension: false, size: 0.45, glcRate: 0.4, price: 65, hue: 65, level: 7, sens: 1.1, p53: 'wt', maxPassage: 26, startPassage: 10 },
-  HDF: { name: 'HDF', medium: 'DMEM', td: 40, suspension: false, size: 0.4, glcRate: 0.45, price: 75, hue: 15, level: 8, sens: 1.2, p53: 'wt', maxPassage: 18, startPassage: 5 },
-  HUVEC: { name: 'HUVEC', medium: 'EGM2', td: 30, suspension: false, size: 0.6, glcRate: 0.5, price: 120, hue: 355, level: 9, sens: 1.5, p53: 'wt', maxPassage: 9, startPassage: 2 },
-  iPSC: { name: 'iPSC', medium: 'MTESR', td: 22, suspension: false, size: 1.6, glcRate: 0.7, price: 220, hue: 170, level: 10, sens: 2, p53: 'wt', startPassage: 25 },
+  L929: { name: 'L929', medium: 'MEM', td: 24, suspension: false, size: 1.2, glcRate: 0.45, price: 6, hue: 95, level: 1, sens: 0.5, p53: 'wt', startPassage: 10, morph: 'spindle', badge: '🐭' },
+  HeLa: { name: 'HeLa', medium: 'DMEM', td: 24, suspension: false, size: 1, glcRate: 0.6, price: 15, hue: 330, level: 1, sens: 0.7, p53: 'inactive', startPassage: 5, morph: 'polygonal', badge: '👑' },
+  HEK293T: { name: 'HEK293T', medium: 'DMEM', td: 20, suspension: false, size: 1.4, glcRate: 0.55, price: 20, hue: 200, level: 2, sens: 1.1, p53: 'inactive', startPassage: 5, morph: 'cobblestone', badge: '🏭' },
+  A549: { name: 'A549', medium: 'F12K', td: 22, suspension: false, size: 1, glcRate: 0.6, price: 22, hue: 140, level: 2, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🫁' },
+  MCF7: { name: 'MCF-7', medium: 'MEM', td: 36, suspension: false, size: 1.2, glcRate: 0.4, price: 30, hue: 280, level: 3, sens: 1, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🎗️' },
+  U2OS: { name: 'U2OS', medium: 'MCCOY', td: 30, suspension: false, size: 0.7, glcRate: 0.5, price: 28, hue: 30, level: 3, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'flat', badge: '🦴' },
+  MDA231: { name: 'MDA-MB-231', medium: 'DMEM', td: 32, suspension: false, size: 0.9, glcRate: 0.65, price: 34, hue: 300, level: 4, sens: 0.8, p53: 'inactive', startPassage: 5, morph: 'spindle', badge: '🎗️' },
+  A375: { name: 'A375', medium: 'DMEM', td: 22, suspension: false, size: 1, glcRate: 0.55, price: 34, hue: 10, level: 4, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'star', badge: '🌑' },
+  U87: { name: 'U87 MG', medium: 'MEM', td: 34, suspension: false, size: 0.7, glcRate: 0.5, price: 38, hue: 250, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠' },
+  A172: { name: 'A172', medium: 'DMEM', td: 38, suspension: false, size: 0.8, glcRate: 0.45, price: 38, hue: 225, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠' },
+  Jurkat: { name: 'Jurkat', medium: 'RPMI', td: 28, suspension: true, size: 1, glcRate: 0.35, price: 40, hue: 50, level: 6, sens: 1, p53: 'inactive', startPassage: 5, morph: 'round', badge: '🩸' },
+  MRC5: { name: 'MRC-5', medium: 'MEM', td: 30, suspension: false, size: 0.45, glcRate: 0.4, price: 60, hue: 40, level: 7, sens: 1.1, p53: 'wt', maxPassage: 28, startPassage: 12, morph: 'spindle', badge: '💉' },
+  IMR90: { name: 'IMR-90', medium: 'MEM', td: 32, suspension: false, size: 0.45, glcRate: 0.4, price: 65, hue: 65, level: 7, sens: 1.1, p53: 'wt', maxPassage: 26, startPassage: 10, morph: 'spindle', badge: '⏳' },
+  HDF: { name: 'HDF', medium: 'DMEM', td: 40, suspension: false, size: 0.4, glcRate: 0.45, price: 75, hue: 15, level: 8, sens: 1.2, p53: 'wt', maxPassage: 18, startPassage: 5, morph: 'spindle', badge: '✋' },
+  HUVEC: { name: 'HUVEC', medium: 'EGM2', td: 30, suspension: false, size: 0.6, glcRate: 0.5, price: 120, hue: 355, level: 9, sens: 1.5, p53: 'wt', maxPassage: 9, startPassage: 2, morph: 'cobblestone', badge: '🫀' },
+  iPSC: { name: 'iPSC', medium: 'MTESR', td: 22, suspension: false, size: 1.6, glcRate: 0.7, price: 220, hue: 170, level: 10, sens: 2, p53: 'wt', startPassage: 25, morph: 'colony', badge: '🌱' },
 };
 export const LINE_ORDER = Object.keys(LINES) as LineId[];
 
@@ -166,8 +169,8 @@ export const CONTAM: Record<ContamType, { level: number; growth: number; growthP
 
 // ---------------------------------------------------------------- loja
 
-export type ShopCat = 'media' | 'reagents' | 'protection' | 'plastics' | 'drugs' | 'virus' | 'cells' | 'equipment';
-export const SHOP_CATS: ShopCat[] = ['media', 'reagents', 'protection', 'plastics', 'drugs', 'virus', 'cells', 'equipment'];
+export type ShopCat = 'passes' | 'cells' | 'media' | 'reagents' | 'protection' | 'plastics' | 'drugs' | 'virus' | 'equipment';
+export const SHOP_CATS: ShopCat[] = ['passes', 'cells', 'media', 'reagents', 'protection', 'plastics', 'drugs', 'virus', 'equipment'];
 
 export interface ShopItem {
   id: string;
@@ -177,18 +180,15 @@ export interface ShopItem {
   inv?: string;
   qty?: number;
   unit?: 'mL' | 'un' | 'doses' | 'tests' | 'aliquot' | 'courses';
-  special?: 'incubator' | 'irradiator' | 'fluo' | 'co2' | 'vial';
+  special?: 'incubator' | 'irradiator' | 'scope' | 'co2' | 'vial' | 'pass';
   line?: LineId;
   medium?: MediumId;
   agent?: AgentId;
   marker?: MarkerId;
 }
 
-const mediumLevel = (m: MediumId) =>
-  Math.min(...LINE_ORDER.filter((l) => LINES[l].medium === m).map((l) => LINES[l].level));
-
 export const SHOP: ShopItem[] = [
-  ...MEDIUM_ORDER.map<ShopItem>((m) => ({ id: `med_${m}`, cat: 'media', price: MEDIA[m].price, level: mediumLevel(m), inv: `med_${m}`, qty: 500, unit: 'mL', medium: m })),
+  ...MEDIUM_ORDER.map<ShopItem>((m) => ({ id: `med_${m}`, cat: 'media', price: MEDIA[m].price, level: 1, inv: `med_${m}`, qty: 500, unit: 'mL', medium: m })),
   { id: 'FBS', cat: 'reagents', price: 90, level: 1, inv: 'FBS', qty: 50, unit: 'mL' },
   { id: 'trypsin', cat: 'reagents', price: 30, level: 1, inv: 'trypsin', qty: 100, unit: 'mL' },
   { id: 'PBS', cat: 'reagents', price: 15, level: 1, inv: 'PBS', qty: 500, unit: 'mL' },
@@ -209,11 +209,71 @@ export const SHOP: ShopItem[] = [
   ...LINE_ORDER.map<ShopItem>((l) => ({ id: `vial_${l}`, cat: 'cells', price: Math.max(40, LINES[l].price * 12), level: LINES[l].level, special: 'vial', line: l })),
   { id: 'co2', cat: 'equipment', price: 50, level: 1, special: 'co2' },
   { id: 'incubator', cat: 'equipment', price: 1200, level: 2, special: 'incubator' },
-  { id: 'fluo', cat: 'equipment', price: 2000, level: 2, special: 'fluo' },
+  { id: 'scope', cat: 'equipment', price: 0, level: 1, special: 'scope' },
   { id: 'irradiator', cat: 'equipment', price: 3500, level: 3, special: 'irradiator' },
 ];
 
 export const DISINFECT_COST = 20;
+
+// ---------------------------------------------------------------- microscópios
+
+export interface ScopeDef {
+  id: ScopeMode;
+  price: number;
+  level: number;
+  /** multiplica o impacto de artigos com leitura por imagem */
+  impact: number;
+}
+
+export const SCOPES: ScopeDef[] = [
+  { id: 'phase', price: 0, level: 1, impact: 1 },
+  { id: 'fluo', price: 1800, level: 2, impact: 1 },
+  { id: 'timelapse', price: 3500, level: 4, impact: 1.1 },
+  { id: 'confocal', price: 7000, level: 6, impact: 1.3 },
+  { id: 'superres', price: 15000, level: 8, impact: 1.6 },
+  { id: 'electron', price: 25000, level: 10, impact: 1.8 },
+];
+export const hasScope = (tier: number, id: ScopeMode) => tier >= SCOPES.findIndex((x) => x.id === id);
+
+// ---------------------------------------------------------------- passes
+
+export type PassId = 'time12' | 'time48' | 'confluence' | 'autofeed' | 'shield' | 'lucky' | 'sale2x' | 'xp2x' | 'express' | 'cleanse' | 'telomerase';
+export interface PassDef {
+  id: PassId;
+  icon: string;
+  price: number;
+  level: number;
+  /** precisa de um frasco selecionado */
+  flask?: boolean;
+}
+
+export const PASSES: PassDef[] = [
+  { id: 'time12', icon: '⏩', price: 90, level: 1 },
+  { id: 'time48', icon: '🚀', price: 300, level: 2 },
+  { id: 'confluence', icon: '📈', price: 70, level: 1, flask: true },
+  { id: 'autofeed', icon: '🤖', price: 220, level: 2 },
+  { id: 'shield', icon: '🛡️', price: 140, level: 2 },
+  { id: 'lucky', icon: '🍀', price: 180, level: 1 },
+  { id: 'sale2x', icon: '🏷️', price: 160, level: 2 },
+  { id: 'xp2x', icon: '☕', price: 110, level: 1 },
+  { id: 'express', icon: '⚡', price: 120, level: 2, flask: true },
+  { id: 'cleanse', icon: '✨', price: 260, level: 2, flask: true },
+  { id: 'telomerase', icon: '🧬', price: 400, level: 7, flask: true },
+];
+
+// ---------------------------------------------------------------- minijogos
+
+export const GAMES: { id: GameId; icon: string; rate: number; cap: number }[] = [
+  { id: 'drop', icon: '🍬', rate: 1, cap: 120 },
+  { id: 'whack', icon: '🦠', rate: 2, cap: 120 },
+  { id: 'memory', icon: '🧠', rate: 1, cap: 80 },
+  { id: 'count', icon: '🔢', rate: 1, cap: 60 },
+];
+/** jogadas no mesmo dia de jogo rendem menos: 100%, 100%, 100%, 50%, 50%, 50%, 20%... */
+export const gameMult = (plays: number) => (plays < 3 ? 1 : plays < 6 ? 0.5 : 0.2);
+export const EARLY_UNLOCK_MULT = 2.5;
+
+SHOP.unshift(...PASSES.map<ShopItem>((p) => ({ id: `pass_${p.id}`, cat: 'passes', price: p.price, level: p.level, inv: `pass_${p.id}`, qty: 1, unit: 'un', special: 'pass' })));
 
 // ---------------------------------------------------------------- níveis
 
@@ -240,6 +300,7 @@ export function unlocksAt(level: number): string[] {
     ...AGENT_ORDER.filter((a) => AGENTS[a].level === level && level > 1).map((a) => `@agent.${a}`),
     ...SHOP.filter((i) => i.cat === 'equipment' && i.level === level && i.level > 1).map((i) => `@shop.${i.id}`),
     ...(Object.keys(CONTAM) as ContamType[]).filter((c) => CONTAM[c].level === level && level > 1).map((c) => `@unlock.${c}`),
+    ...SCOPES.filter((sc) => sc.level === level && level > 1).map((sc) => `@scope.${sc.id}`),
   ];
 }
 

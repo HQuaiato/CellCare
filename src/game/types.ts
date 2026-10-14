@@ -31,6 +31,9 @@ export type FlaskType = 'T25' | 'T75' | 'T175';
 /** Leitura de um experimento: ensaio de viabilidade (MTT) ou imagem de um marcador fluorescente. */
 export type Readout = 'MTT' | MarkerId;
 export type ContamType = 'bacteria' | 'fungus' | 'mycoplasma';
+export type Morph = 'polygonal' | 'spindle' | 'star' | 'round' | 'cobblestone' | 'colony' | 'flat';
+export type ScopeMode = 'phase' | 'fluo' | 'timelapse' | 'confocal' | 'superres' | 'electron';
+export type GameId = 'drop' | 'whack' | 'memory' | 'count';
 
 export type Mood =
   | 'happy'
@@ -86,6 +89,8 @@ export interface Flask {
   afx: boolean;
   /** horas restantes de tratamento anti-micoplasma */
   mycoTreat: number;
+  /** imortalizada com hTERT: ignora o limite de Hayflick */
+  immortal?: boolean;
   transduction: { marker: MarkerId; hoursLeft: number } | null;
   seed: number;
   bornAt: number;
@@ -109,6 +114,7 @@ export interface Vial {
   viability: number;
   frozenAt: number;
   contam: ContamType | null;
+  immortal?: boolean;
 }
 
 export interface Suspension {
@@ -119,6 +125,7 @@ export interface Suspension {
   passage: number;
   from: string;
   contam: Contam | null;
+  immortal?: boolean;
 }
 
 export interface Experiment {
@@ -132,6 +139,7 @@ export interface Experiment {
   startedAt: number;
   readyAt: number;
   flaskName: string;
+  lucky?: boolean;
 }
 
 export interface Paper {
@@ -170,7 +178,11 @@ export interface GameState {
   papers: Paper[];
   demand: Record<string, number>;
   inventory: Record<string, number>;
-  equipment: { irradiator: boolean; fluo: boolean };
+  /** scope = índice do melhor microscópio em SCOPES */
+  equipment: { irradiator: boolean; scope: number };
+  boosts: { autoFeedUntil: number; shieldUntil: number; sale2xUntil: number; xp2xUntil: number; lucky: number };
+  gamePlays: { day: number; counts: Record<string, number> };
+  bestScores: Record<string, number>;
   settings: { penstrep: boolean; ampho: boolean };
   /** contadores para as missões */
   stats: Record<string, number>;

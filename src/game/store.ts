@@ -68,6 +68,8 @@ function toastNewLogs() {
 
 // ---------------------------------------------------------------- estado
 
+export const getGame = () => state;
+
 export function useGameMaybe() {
   return useSyncExternalStore(subscribe, () => state);
 }

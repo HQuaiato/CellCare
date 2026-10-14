@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { LINES } from '../game/data';
-import { flaskMood } from '../game/sim';
-import type { Flask, Mood } from '../game/types';
+import { capacity, flaskMood } from '../game/sim';
+import type { Flask, Mood, Morph } from '../game/types';
 
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -14,27 +14,43 @@ function rng(seed: number) {
   };
 }
 
-/** Contorno da célula: aderente tem pseudópodes, suspensão é redondinha. */
-function bodyPath(seed: number, suspension: boolean) {
+/** Raio do contorno em função do ângulo, por morfologia. */
+function radius(morph: Morph, t: number, ph: number[]) {
+  const bump = (center: number, width: number, amp: number) => {
+    const d = Math.atan2(Math.sin(t - center), Math.cos(t - center));
+    return amp * Math.exp(-((d / width) ** 2));
+  };
+  switch (morph) {
+    case 'spindle': // fusiforme: fibroblastos, MDA-MB-231
+      return 60 + 52 * Math.abs(Math.cos(t)) ** 4 + 3 * Math.sin(5 * t + ph[0]);
+    case 'star': // astrocitária / dendrítica: U87, A172, A375
+      return 64 + [0, 1, 2, 3, 4].reduce((acc, i) => acc + bump(ph[2] + i * 1.26 + 0.3 * Math.sin(i + ph[1]), 0.13, 40), 0);
+    case 'round': // suspensão: Jurkat
+      return 84 * (1 + 0.015 * Math.sin(4 * t + ph[0]));
+    case 'cobblestone': { // epitelial/endotelial em paralelepípedo
+      const k = Math.PI / 3;
+      const hex = Math.cos(k / 2) / Math.cos((((t + ph[0]) % k) + k) % k - k / 2);
+      return 86 * (0.45 + 0.55 * hex);
+    }
+    case 'colony': // iPSC: pequena, núcleo enorme
+      return 78 * (1 + 0.02 * Math.sin(3 * t + ph[0]));
+    case 'flat': // U2OS: grande e espalhada, lamelipódios
+      return 98 * (1 + 0.04 * Math.sin(9 * t + ph[0]) + 0.05 * Math.sin(4 * t + ph[1]));
+    default: // poligonal com pseudópodes: HeLa
+      return 86 * (1 + 0.06 * Math.sin(3 * t + ph[0]) + 0.04 * Math.sin(5 * t + ph[1])) + bump(ph[2], 0.28, 18) + bump(ph[2] + 2.6, 0.25, 11);
+  }
+}
+
+function bodyPath(seed: number, morph: Morph) {
   const r = rng(seed);
-  const p1 = r() * 6.28;
-  const p2 = r() * 6.28;
-  const pod = r() * 6.28;
+  const ph = [r() * 6.28, r() * 6.28, r() * 6.28];
+  const flat = morph === 'flat' ? 0.85 : 0.92;
   const pts: [number, number][] = [];
-  const N = 72;
+  const N = 96;
   for (let i = 0; i < N; i++) {
     const t = (i / N) * Math.PI * 2;
-    let rad = 86;
-    if (!suspension) {
-      rad *= 1 + 0.06 * Math.sin(3 * t + p1) + 0.04 * Math.sin(5 * t + p2);
-      const dp = Math.atan2(Math.sin(t - pod), Math.cos(t - pod));
-      rad += 18 * Math.exp(-((dp / 0.28) ** 2));
-      const dp2 = Math.atan2(Math.sin(t - pod - 2.6), Math.cos(t - pod - 2.6));
-      rad += 11 * Math.exp(-((dp2 / 0.25) ** 2));
-    } else {
-      rad *= 1 + 0.015 * Math.sin(4 * t + p1);
-    }
-    pts.push([120 + rad * Math.cos(t), 122 + rad * 0.92 * Math.sin(t)]);
+    const rad = radius(morph, t, ph);
+    pts.push([120 + rad * Math.cos(t), 122 + rad * flat * Math.sin(t)]);
   }
   // Catmull-Rom → Bézier para um contorno suave
   let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
@@ -49,6 +65,16 @@ function bodyPath(seed: number, suspension: boolean) {
   }
   return d + 'Z';
 }
+
+const NUCLEUS: Record<Morph, { cy: number; rx: number; ry: number; dy: number }> = {
+  polygonal: { cy: 86, rx: 36, ry: 30, dy: 0 },
+  spindle: { cy: 98, rx: 42, ry: 20, dy: -6 },
+  star: { cy: 92, rx: 32, ry: 26, dy: -2 },
+  round: { cy: 88, rx: 38, ry: 32, dy: 0 },
+  cobblestone: { cy: 88, rx: 34, ry: 30, dy: 0 },
+  colony: { cy: 90, rx: 48, ry: 38, dy: 2 },
+  flat: { cy: 84, rx: 40, ry: 30, dy: 0 },
+};
 
 function Eyes({ mood }: { mood: Mood }) {
   const L = 100;
@@ -142,10 +168,11 @@ function Mouth({ mood }: { mood: Mood }) {
   }
 }
 
-export function CellAvatar({ flask, time }: { flask: Flask; time: number }) {
+export function CellAvatar({ flask, time, badge = true }: { flask: Flask; time: number; badge?: boolean }) {
   const L = LINES[flask.line];
   const mood = flaskMood(flask);
-  const path = useMemo(() => bodyPath(flask.seed, L.suspension), [flask.seed, L.suspension]);
+  const path = useMemo(() => bodyPath(flask.seed, L.morph), [flask.seed, L.morph]);
+  const N = NUCLEUS[L.morph];
   const r = rng(flask.seed + 7);
   const has = (m: string) => flask.markers.includes(m as never);
 
@@ -170,7 +197,7 @@ export function CellAvatar({ flask, time }: { flask: Flask; time: number }) {
 
   const mito = Array.from({ length: 4 }, () => [60 + r() * 120, 150 + r() * 40, r() * 180]);
   const puncta = Array.from({ length: 9 }, () => [55 + r() * 130, 110 + r() * 85]);
-  const foci = Array.from({ length: 4 }, () => [104 + r() * 32, 72 + r() * 26]);
+  const foci = Array.from({ length: 4 }, () => [120 - N.rx * 0.45 + r() * N.rx * 0.9, N.cy - N.ry * 0.5 + r() * N.ry]);
   const bacteria = Array.from({ length: 9 }, () => [20 + r() * 200, 20 + r() * 200, r() * 180]);
   const hyphae = Array.from({ length: 5 }, () => [20 + r() * 200, 30 + r() * 190, r() * 6.28]);
   const myco = Array.from({ length: 14 }, () => r() * 6.28);
@@ -197,9 +224,10 @@ export function CellAvatar({ flask, time }: { flask: Flask; time: number }) {
           <ellipse key={i} cx={x} cy={y} rx={8} ry={3.5} transform={`rotate(${a} ${x} ${y})`} fill={`hsl(${L.hue} 60% 78%)`} opacity={0.8} />
         ))}
         {has('LC3') && puncta.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={3.2} fill="#22c55e" opacity={0.9} />)}
-        <ellipse cx={120} cy={86} rx={36} ry={30} fill={nucleus} stroke={nucStroke} strokeWidth={3} />
-        <circle cx={128} cy={80} r={7} fill={nucStroke} opacity={0.35} />
+        <ellipse cx={120} cy={N.cy} rx={N.rx} ry={N.ry} fill={nucleus} stroke={nucStroke} strokeWidth={3} />
+        <circle cx={128} cy={N.cy - 6} r={7} fill={nucStroke} opacity={0.35} />
         {has('53BP1') && foci.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={3} fill="#e11d48" />)}
+        <g transform={`translate(0 ${N.dy})`}>
         <Eyes mood={mood} />
         {(mood === 'happy' || mood === 'transducing') && (
           <g fill="#ff8fab" opacity={0.6}>
@@ -208,7 +236,13 @@ export function CellAvatar({ flask, time }: { flask: Flask; time: number }) {
           </g>
         )}
         <Mouth mood={mood} />
+        </g>
       </g>
+      {badge && (
+        <text x={14} y={40} fontSize={26}>
+          {L.badge}
+        </text>
+      )}
       {mood === 'bacteria' &&
         bacteria.map(([x, y, a], i) => (
           <rect key={i} className="bacterium" x={x} y={y} width={14} height={6} rx={3} fill="#a3a33a" transform={`rotate(${a} ${x} ${y})`} />
@@ -228,4 +262,13 @@ export function CellAvatar({ flask, time }: { flask: Flask; time: number }) {
       {mood === 'happy' && <text className="float" x={190} y={56} fontSize={22}>💕</text>}
     </svg>
   );
+}
+
+/** Frasco fictício para mostrar a cara de uma linhagem (loja, coleção). */
+export function previewFlask(line: Flask['line']): Flask {
+  return {
+    id: `preview-${line}`, no: 0, line, type: 'T75', medium: LINES[line].medium, incubatorId: '', live: capacity({ line, type: 'T75' }) * 0.45, dead: 1e4,
+    passage: 5, glucose: 20, lactate: 2, ammonia: 0.2, pH: 7.4, markers: [], contam: null, abx: false, afx: false,
+    mycoTreat: 0, transduction: null, seed: line.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 7) >>> 0, bornAt: 0, lastMood: 'happy',
+  };
 }

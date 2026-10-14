@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Modal, pct } from '../components/ui';
 import { experimentHours, experimentQuality, have, startExperiment } from '../game/actions';
-import { AGENT_ORDER, AGENTS, LINES, MARKERS, finding, levelOf } from '../game/data';
+import { AGENT_ORDER, AGENTS, LINES, MARKERS, finding, hasScope, levelOf } from '../game/data';
 import { REPLICATES_FOR_PAPER, expKey } from '../game/research';
 import { act, useGame } from '../game/store';
 import type { AgentId, Flask, Readout } from '../game/types';
@@ -19,7 +19,8 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
   const n = key ? s.replicates[key] ?? 0 : 0;
 
   const agentAvail = (a: AgentId) => (AGENTS[a].needsIrradiator ? s.equipment.irradiator : have(s, `drug_${a}`) > 0);
-  const readoutAvail = (r: Readout) => (r === 'MTT' ? have(s, 'MTT') > 0 : s.equipment.fluo);
+  const fluo = hasScope(s.equipment.scope, 'fluo');
+  const readoutAvail = (r: Readout) => (r === 'MTT' ? have(s, 'MTT') > 0 : fluo);
 
   return (
     <Modal title={`🧪 ${t('exp.title')}`} onClose={onClose}>
@@ -45,11 +46,12 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
         {readouts.map((r) => (
           <button key={r} className={readout === r ? 'on' : ''} disabled={!readoutAvail(r)} onClick={() => setReadout(r)}>
             <b>{r === 'MTT' ? t('exp.mtt') : t('exp.imaging', { m: MARKERS[r].name })}</b>
-            <small>{r === 'MTT' ? t('exp.mttSub', { n: have(s, 'MTT') }) : t(s.equipment.fluo ? 'exp.imagingSub' : 'culture.needFluo')}</small>
+            <small>{r === 'MTT' ? t('exp.mttSub', { n: have(s, 'MTT') }) : t(fluo ? 'exp.imagingSub' : 'culture.needFluo')}</small>
           </button>
         ))}
       </div>
       {flask.markers.length === 0 && <p className="hint">💡 {t('exp.markerHint')}</p>}
+      {s.boosts.lucky > 0 && <p className="hint">🍀 {t('exp.lucky')}</p>}
 
       {key && agent && (
         <p className="muted small">

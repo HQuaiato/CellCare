@@ -15,7 +15,7 @@ export function bump(s: GameState, stat: string, n = 1) {
 
 export function addXp(s: GameState, n: number) {
   const before = levelOf(s.xp);
-  s.xp += n;
+  s.xp += s.time < s.boosts.xp2xUntil ? n * 2 : n;
   const after = levelOf(s.xp);
   for (let lv = before + 1; lv <= after; lv++) {
     const u = unlocksAt(lv);
@@ -51,7 +51,7 @@ export function sellCells(
   premium = 1,
   myco = false,
 ) {
-  const total = unitPrice(s, line, markers, viability, passage) * millions * premium;
+  const total = unitPrice(s, line, markers, viability, passage) * millions * premium * (s.time < s.boosts.sale2xUntil ? 2 : 1);
   s.demand[line] = Math.max(0.3, (s.demand[line] ?? 1) - 0.01 * millions);
   bump(s, 'sold');
   if (myco && Math.random() < 0.5) {

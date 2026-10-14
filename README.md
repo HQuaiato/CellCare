@@ -11,6 +11,9 @@ Um "Pou" de biologia celular: em vez de um bichinho, você cuida de **culturas d
 - **Contaminações em 3 níveis:** bactéria (Pen/Strep previne), fungo (anfotericina B; esporos contaminam a estufa) e micoplasma (invisível, só no PCR; resiste a antibióticos).
 - **Economia:** moeda fictícia CellCoins (◈), bolsa diária, missões de tutorial e ajuda da orientadora quando você fica sem nada.
 - **Idiomas e temas:** português, inglês e espanhol; temas Lavanda e Azul. Layout para celular e computador, instalável como app (PWA).
+- **Minijogos (estilo Pou):** Chuva de Nutrientes, Caça-Contaminantes (placa de 12 poços), Memória do Lab e Contagem na Neubauer, que rendem CellCoins.
+- **Passes:** acelerador de tempo (12 h/48 h), confluência instantânea, robô de meio, capela HEPA turbo, "p < 0,05", feira de células, café (XP×2), transdução expressa, descontaminação total e telomerase (hTERT).
+- **Microscópios:** contraste de fase → fluorescência → time-lapse → confocal → super-resolução → eletrônico, cada um com sua imagem; cada linhagem tem morfologia própria.
 - **Transduções:** H2B-GFP, FUCCI, 53BP1-mCherry, GFP-LC3 e luciferase valorizam as células e liberam experimentos de imagem.
 - **Pesquisa:** quimio (cisplatina, etoposídeo, doxorrubicina, paclitaxel, hidroxiureia, rapamicina, cloroquina) e radiação. Três réplicas viram um artigo, com XP e financiamento.
 

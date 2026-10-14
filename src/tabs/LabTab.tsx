@@ -6,7 +6,7 @@ import { QUESTS } from '../game/quests';
 import { act, exportSave, logout, resetGame, useGame } from '../game/store';
 import { t, tm } from '../i18n';
 
-export const GUIDE = ['time', 'medium', 'co2', 'passage', 'freeze', 'contam', 'money', 'research'];
+export const GUIDE = ['time', 'medium', 'co2', 'passage', 'freeze', 'contam', 'money', 'games', 'scopes', 'research'];
 
 export function LabTab() {
   const s = useGame();

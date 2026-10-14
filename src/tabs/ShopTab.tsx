@@ -1,42 +1,84 @@
 import { useState } from 'react';
+import { CellAvatar, previewFlask } from '../components/CellAvatar';
 import { fmtMoney, fmtNum } from '../components/ui';
-import { buy, have, shopPrice } from '../game/actions';
-import { LINES, MARKERS, MEDIA, SHOP, SHOP_CATS, levelOf, type ShopCat, type ShopItem } from '../game/data';
+import { buy, have, shopLevel, shopPrice } from '../game/actions';
+import { LINES, MARKERS, MEDIA, PASSES, SCOPES, SHOP, SHOP_CATS, levelOf, type ShopCat, type ShopItem } from '../game/data';
 import { act, useGame } from '../game/store';
 import type { GameState } from '../game/types';
 import { t } from '../i18n';
 
 function owned(s: GameState, item: ShopItem) {
   if (item.inv) return t('shop.owned', { n: fmtNum(have(s, item.inv), 1), unit: `@unit.${item.unit}` });
-  if (item.special === 'fluo' || item.special === 'irradiator') return s.equipment[item.special] ? `✔ ${t('shop.installed')}` : '';
+  if (item.special === 'irradiator') return s.equipment.irradiator ? `✔ ${t('shop.installed')}` : '';
+  if (item.special === 'scope') return t('shop.scopeNow', { name: `@scope.${SCOPES[s.equipment.scope].id}` });
   if (item.special === 'incubator') return t('shop.ownedCount', { n: s.incubators.length });
   if (item.special === 'co2') return t('shop.tankAt', { pct: Math.round(s.co2Tank) });
-  if (item.special === 'vial') return t('shop.inFreezer', { n: s.vials.filter((v) => v.line === item.line).length });
   return '';
 }
 
-export function itemName(item: ShopItem) {
+export function itemName(s: GameState, item: ShopItem) {
   if (item.medium) return t(`medium.${item.medium}`);
   if (item.agent) return t(`agent.${item.agent}`);
   if (item.marker) return t('shop.virus', { m: MARKERS[item.marker].name });
-  if (item.line) return t('shop.vial', { line: LINES[item.line].name });
+  if (item.special === 'pass') return `${PASSES.find((p) => `pass_${p.id}` === item.id)!.icon} ${t(`pass.${item.id.slice(5)}`)}`;
+  if (item.special === 'scope') {
+    const next = SCOPES[s.equipment.scope + 1];
+    return next ? `${t(`scope.${next.id}.icon`)} ${t('shop.scopeUpgrade', { name: `@scope.${next.id}` })}` : `🔬 ${t('shop.scopeMax')}`;
+  }
   return t(`shop.${item.id}`);
 }
 
-function itemDesc(item: ShopItem) {
+function itemDesc(s: GameState, item: ShopItem) {
   if (item.medium) {
     const M = MEDIA[item.medium];
     return t('shop.mediumDesc', { glc: M.glc, hco3: M.hco3, serum: Math.round(M.serum * 100) });
   }
   if (item.agent) return `${t(`agentcls.${item.agent}`)} · ${t('shop.treatments', { n: item.qty! })}`;
   if (item.marker) return t('shop.virusDesc', { desc: `@marker.${item.marker}`, b: Math.round(MARKERS[item.marker].bonus * 100) });
-  if (item.line) return t('shop.vialDesc', { origin: `@line.${item.line}.origin`, p: LINES[item.line].startPassage });
+  if (item.special === 'pass') return t(`pass.${item.id.slice(5)}.desc`);
+  if (item.special === 'scope') {
+    const next = SCOPES[s.equipment.scope + 1];
+    return next ? t(`scope.${next.id}.desc`) : t('shop.scopeMaxDesc');
+  }
   return t(`shop.${item.id}.desc`);
+}
+
+/** Vitrine de linhagens: cada uma com sua carinha, nível e preço (dá para antecipar pagando mais). */
+function CellShop({ s }: { s: GameState }) {
+  const lv = levelOf(s.xp);
+  return (
+    <div className="cell-grid">
+      {SHOP.filter((i) => i.cat === 'cells').map((item) => {
+        const L = LINES[item.line!];
+        const early = lv < item.level;
+        const price = shopPrice(s, item.id);
+        const inFreezer = s.vials.filter((v) => v.line === item.line).length;
+        return (
+          <section key={item.id} className={`card cell-card ${early ? 'early' : ''}`}>
+            <div className="cell-thumb">
+              <CellAvatar flask={previewFlask(item.line!)} time={0} />
+            </div>
+            <h3>
+              {L.badge} {L.name}
+            </h3>
+            <p className="muted small">{t(`line.${item.line}.origin`)}</p>
+            <p className="small">
+              {t(`medium.${L.medium}.short`)} · {L.suspension ? t('shop.suspension') : t(`morph.${L.morph}`)} · {L.td} h
+            </p>
+            <p className="small">{early ? `🔒 ${t('shop.lineLevel', { lv: item.level })}` : inFreezer ? t('shop.inFreezer', { n: inFreezer }) : t('shop.lineReady')}</p>
+            <button className="btn gold block" disabled={s.money < price} onClick={() => act((st) => buy(st, item.id))}>
+              {early ? t('shop.earlyBuy', { p: fmtMoney(price) }) : fmtMoney(price)}
+            </button>
+          </section>
+        );
+      })}
+    </div>
+  );
 }
 
 export function ShopTab() {
   const s = useGame();
-  const [cat, setCat] = useState<ShopCat>('media');
+  const [cat, setCat] = useState<ShopCat>('passes');
   const lv = levelOf(s.xp);
 
   return (
@@ -49,28 +91,36 @@ export function ShopTab() {
         ))}
       </div>
       <p className="muted small">{t(`cat.${cat}.hint`)}</p>
-      <div className="grid-2">
-        {SHOP.filter((i) => i.cat === cat).map((item) => {
-          const locked = lv < item.level;
-          const price = shopPrice(s, item.id);
-          return (
-            <section key={item.id} className={`card shop-item ${locked ? 'locked' : ''}`}>
-              <div className="grow">
-                <h3>
-                  {locked && '🔒 '}
-                  {itemName(item)}
-                  {item.qty && item.qty > 1 && <small className="muted"> · {item.qty} {t(`unit.${item.unit}`)}</small>}
-                </h3>
-                <p className="muted small">{itemDesc(item)}</p>
-                <p className="small">{locked ? t('err.levelLocked', { lv: item.level }) : owned(s, item)}</p>
-              </div>
-              <button className="btn gold" disabled={locked || s.money < price} onClick={() => act((st) => buy(st, item.id))}>
-                {fmtMoney(price)}
-              </button>
-            </section>
-          );
-        })}
-      </div>
+      {cat === 'cells' ? (
+        <CellShop s={s} />
+      ) : (
+        <div className="grid-2">
+          {SHOP.filter((i) => i.cat === cat).map((item) => {
+            const need = shopLevel(s, item);
+            const locked = lv < need;
+            const price = shopPrice(s, item.id);
+            const maxed = item.special === 'scope' && !SCOPES[s.equipment.scope + 1];
+            return (
+              <section key={item.id} className={`card shop-item ${locked ? 'locked' : ''}`}>
+                <div className="grow">
+                  <h3>
+                    {locked && '🔒 '}
+                    {itemName(s, item)}
+                    {item.qty && item.qty > 1 && <small className="muted"> · {item.qty} {t(`unit.${item.unit}`)}</small>}
+                  </h3>
+                  <p className="muted small">{itemDesc(s, item)}</p>
+                  <p className="small">{locked ? t('err.levelLocked', { lv: need }) : owned(s, item)}</p>
+                </div>
+                {!maxed && (
+                  <button className="btn gold" disabled={locked || s.money < price} onClick={() => act((st) => buy(st, item.id))}>
+                    {fmtMoney(price)}
+                  </button>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

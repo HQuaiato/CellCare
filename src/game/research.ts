@@ -1,4 +1,4 @@
-import { JOURNAL_MIN, LINES, MARKERS, finding } from './data';
+import { JOURNAL_MIN, LINES, MARKERS, SCOPES, finding } from './data';
 import { addXp, bump, log } from './econ';
 import type { AgentId, Experiment, GameState, LineId, Readout } from './types';
 
@@ -15,7 +15,7 @@ export const readoutName = (r: Readout) => (r === 'MTT' ? 'MTT' : MARKERS[r].nam
 
 export function resolveExperiment(s: GameState, e: Experiment) {
   const p = { line: LINES[e.line].name, agent: `@agent.${e.agent}`, readout: readoutName(e.readout) };
-  const ok = e.quality >= 0.35 && Math.random() < 0.15 + 0.85 * e.quality;
+  const ok = e.lucky || (e.quality >= 0.35 && Math.random() < 0.15 + 0.85 * e.quality);
   if (!ok) {
     addXp(s, 5);
     log(s, 'log.expInconclusive', { ...p, q: Math.round(e.quality * 100) }, 'warn');
@@ -35,7 +35,8 @@ export function resolveExperiment(s: GameState, e: Experiment) {
     return;
   }
 
-  const impact = f.rel * (0.6 + 0.08 * LINES[e.line].level) * (e.readout === 'MTT' ? 0.7 : 1);
+  const scopeBoost = e.readout === 'MTT' ? 0.7 : SCOPES[s.equipment.scope].impact;
+  const impact = f.rel * (0.6 + 0.08 * LINES[e.line].level) * scopeBoost;
   const journal = JOURNAL_MIN.findIndex((min) => impact >= min);
   const reward = Math.round(250 + 2200 * impact);
   s.papers.unshift({ id: e.id, key: e.key, line: e.line, agent: e.agent, readout: e.readout, markers: e.markers, journal, impact, reward, at: s.time });

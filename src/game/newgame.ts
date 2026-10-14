@@ -3,7 +3,7 @@ import { log } from './econ';
 import { eqPH } from './sim';
 import type { GameState } from './types';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export function newGame(player: string): GameState {
   const s: GameState = {
@@ -35,7 +35,10 @@ export function newGame(player: string): GameState {
       drug_cisplatin: 3,
       penstrep: 10,
     },
-    equipment: { irradiator: false, fluo: false },
+    equipment: { irradiator: false, scope: 0 },
+    boosts: { autoFeedUntil: 0, shieldUntil: 0, sale2xUntil: 0, xp2xUntil: 0, lucky: 0 },
+    gamePlays: { day: 0, counts: {} },
+    bestScores: {},
     settings: { penstrep: false, ampho: false },
     stats: {},
     quests: {},
@@ -82,6 +85,7 @@ export function newGame(player: string): GameState {
 export function migrate(raw: any): GameState | null {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.version === SAVE_VERSION) return raw as GameState;
+  if (raw.version === 2) return v2to3(raw);
   if (raw.version !== 1) return null;
   const s = raw;
   s.version = SAVE_VERSION;
@@ -110,6 +114,16 @@ export function migrate(raw: any): GameState | null {
   });
   s.log = [];
   s.logSeq = 0;
+  return v2to3(s);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function v2to3(s: any): GameState {
+  s.version = SAVE_VERSION;
+  s.equipment = { irradiator: !!s.equipment?.irradiator, scope: s.equipment?.fluo ? 1 : 0 };
+  s.boosts = { autoFeedUntil: 0, shieldUntil: 0, sale2xUntil: 0, xp2xUntil: 0, lucky: 0 };
+  s.gamePlays = { day: 0, counts: {} };
+  s.bestScores = {};
   log(s, 'log.migrated');
   return s as GameState;
 }

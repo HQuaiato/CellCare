@@ -1191,3 +1191,217 @@ select {
 .level {
   max-width: 320px;
 }
+
+/* ---------------------------------------------------------------- v0.3: passes, jogos, loja de células */
+
+.tabs {
+  grid-template-columns: repeat(7, 1fr);
+}
+.tabs button {
+  font-size: 0.62rem;
+}
+.scope-seg {
+  justify-content: center;
+}
+.seg button.on.mode-fluo,
+.seg button.on.mode-confocal,
+.seg button.on.mode-superres {
+  background: #111827;
+  color: #86efac;
+}
+.seg button.on.mode-electron {
+  background: #3f3f46;
+  color: #e4e4e7;
+}
+.boostbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+.pass-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pass {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  padding: 8px 10px;
+}
+.pass small {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.pass.locked {
+  opacity: 0.5;
+}
+.pass-icon {
+  font-size: 1.8rem;
+}
+.cell-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.cell-card {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+.cell-card.early {
+  background: linear-gradient(180deg, var(--card), var(--soft2));
+}
+.cell-card p {
+  margin: 2px 0;
+}
+.cell-card .btn {
+  margin-top: auto;
+}
+.cell-thumb {
+  display: grid;
+  place-items: center;
+}
+.cell-thumb .avatar {
+  width: 120px;
+}
+.game-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.game-icon {
+  font-size: 2.6rem;
+}
+.game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.game-hud {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  justify-content: space-between;
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+.game-canvas {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  touch-action: none;
+  background: #fff;
+}
+.neubauer-canvas {
+  aspect-ratio: 1;
+}
+.center-row {
+  justify-content: center;
+}
+.plate {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 360px;
+  background: #dbe4f0;
+  padding: 14px;
+  border-radius: 22px;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.well {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 3px solid #b6c3d6;
+  background: radial-gradient(circle at 40% 35%, #fbe3ea, #e0405f 90%);
+  font-size: 1.8rem;
+  display: grid;
+  place-items: center;
+  touch-action: manipulation;
+}
+.well span {
+  animation: popin 0.15s;
+}
+.well em {
+  position: absolute;
+  top: -6px;
+  right: -4px;
+  font-style: normal;
+  font-weight: 900;
+  color: #15803d;
+  animation: rise 0.6s forwards;
+}
+.well em.neg {
+  color: #b91c1c;
+}
+.memory {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 360px;
+}
+.mem-card {
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 14px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 1.8rem;
+  font-weight: 800;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s;
+}
+.mem-card.up {
+  background: #fff;
+  transform: rotateY(180deg);
+}
+.mem-card.up span {
+  display: inline-block;
+  transform: rotateY(180deg);
+}
+.mem-card.found {
+  background: #dcfce7;
+}
+.result .big {
+  font-size: 3rem;
+}
+.result .coins {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #b45309;
+}
+@keyframes popin {
+  from {
+    transform: scale(0.3);
+  }
+}
+@keyframes rise {
+  to {
+    transform: translateY(-18px);
+    opacity: 0;
+  }
+}
+@media (min-width: 900px) {
+  .tabs {
+    display: flex;
+  }
+  .tabs button {
+    font-size: 0.78rem;
+  }
+  .cell-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .game-stage {
+    max-width: 520px;
+    margin: 0 auto;
+  }
+}

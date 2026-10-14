@@ -14,6 +14,7 @@ export const QUESTS: Quest[] = [
   { id: 'passage', reward: 30, done: (s) => (s.stats.passages ?? 0) >= 1 },
   { id: 'freeze', reward: 30, done: (s) => (s.stats.frozen ?? 0) >= 1 },
   { id: 'sell', reward: 20, done: (s) => (s.stats.sold ?? 0) >= 1 },
+  { id: 'game', reward: 20, done: (s) => (s.stats.games ?? 0) >= 1 },
   { id: 'experiment', reward: 40, done: (s) => (s.stats.experiments ?? 0) >= 1 },
   { id: 'paper', reward: 100, done: (s) => (s.stats.papers ?? 0) >= 1 },
   { id: 'transduce', reward: 60, done: (s) => (s.stats.transductions ?? 0) >= 1 },

@@ -7,17 +7,19 @@ import { t, usePrefs } from './i18n';
 import { SuspensionModal } from './modals/SuspensionModal';
 import { CultureTab } from './tabs/CultureTab';
 import { FreezerTab } from './tabs/FreezerTab';
+import { GamesTab } from './tabs/GamesTab';
 import { IncubatorsTab } from './tabs/IncubatorsTab';
 import { LabTab } from './tabs/LabTab';
 import { ResearchTab } from './tabs/ResearchTab';
 import { ShopTab } from './tabs/ShopTab';
 
-type Tab = 'culture' | 'incubators' | 'freezer' | 'shop' | 'research' | 'lab';
+type Tab = 'culture' | 'incubators' | 'freezer' | 'games' | 'shop' | 'research' | 'lab';
 
 const TABS: { id: Tab; icon: string }[] = [
   { id: 'culture', icon: '🧫' },
   { id: 'incubators', icon: '🌡️' },
   { id: 'freezer', icon: '❄️' },
+  { id: 'games', icon: '🎮' },
   { id: 'shop', icon: '🛒' },
   { id: 'research', icon: '🔬' },
   { id: 'lab', icon: '📓' },
@@ -53,6 +55,7 @@ function Game() {
             />
           )}
           {tab === 'freezer' && <FreezerTab onThaw={() => setTab('culture')} />}
+          {tab === 'games' && <GamesTab />}
           {tab === 'shop' && <ShopTab />}
           {tab === 'research' && <ResearchTab />}
           {tab === 'lab' && <LabTab />}

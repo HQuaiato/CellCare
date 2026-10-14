@@ -1,9 +1,9 @@
-import { AGENTS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, FLASKS, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, SHOP, levelOf } from './data';
+import { AGENTS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, PASSES, SCOPES, SHOP, gameMult, hasScope, levelOf, type PassId } from './data';
 import { VIAL_PREMIUM, addXp, bump, log, m, sellCells } from './econ';
 import { QUESTS } from './quests';
 import { expKey } from './research';
-import { capacity, confluence, eqPH, flaskName, isMyco, viability } from './sim';
-import type { AgentId, ContamType, Flask, FlaskType, GameState, LineId, MarkerId, MediumId, Msg, Readout } from './types';
+import { advance, capacity, confluence, eqPH, flaskName, isMyco, viability } from './sim';
+import type { AgentId, ContamType, Flask, FlaskType, GameId, GameState, LineId, MarkerId, MediumId, Msg, Readout } from './types';
 
 export class GameError extends Error {
   constructor(public msg: Msg) {
@@ -80,7 +80,7 @@ function getFlask(s: GameState, id: string) {
  * Micoplasma (nível 4) ignora antibióticos e passa de frasco em frasco pela capela.
  */
 function expose(s: GameState, f: Flask, base = 1) {
-  if (f.contam) return;
+  if (f.contam || s.time < s.boosts.shieldUntil) return;
   const lv = levelOf(s.xp);
   const sens = LINES[f.line].sens;
   const inc = s.incubators.find((i) => i.id === f.incubatorId);
@@ -176,6 +176,7 @@ export function passage(s: GameState, id: string): Msg {
     passage: f.passage,
     from: flaskName(f),
     contam: f.contam ? { ...f.contam } : null,
+    immortal: f.immortal,
   };
   s.flasks = s.flasks.filter((x) => x.id !== id);
   s.selectedFlaskId = s.flasks[0]?.id ?? null;
@@ -204,6 +205,7 @@ export function seed(s: GameState, type: FlaskType, millions: number): Msg {
   f.abx = tmp.abx;
   f.afx = tmp.afx;
   f.contam = sus.contam ? { ...sus.contam } : null;
+  f.immortal = sus.immortal;
   expose(s, f);
   if (sus.live < 1e4) s.suspension = null;
   return m('ok.seeded', { flask: flaskName(f), p: f.passage });
@@ -217,7 +219,7 @@ export function freeze(s: GameState, n: number): Msg {
   spend(s, { cryovial: n, FBS: 0.9 * n, DMSO: 0.1 * n });
   const v = viability(sus);
   for (let i = 0; i < n; i++) {
-    s.vials.push({ id: uid(), line: sus.line, markers: [...sus.markers], passage: sus.passage + 1, viability: v, frozenAt: s.time, contam: sus.contam?.type ?? null });
+    s.vials.push({ id: uid(), line: sus.line, markers: [...sus.markers], passage: sus.passage + 1, viability: v, frozenAt: s.time, contam: sus.contam?.type ?? null, immortal: sus.immortal });
   }
   const frac = (n * CELLS_PER_VIAL) / sus.live;
   sus.dead -= sus.dead * frac;
@@ -261,6 +263,7 @@ export function thaw(s: GameState, vialId: string, type: FlaskType): Msg {
   f.abx = tmp.abx;
   f.afx = tmp.afx;
   if (vial.contam) f.contam = { type: vial.contam, level: vial.contam === 'mycoplasma' ? 0.3 : 0.1, detected: false };
+  f.immortal = vial.immortal;
   expose(s, f);
   addXp(s, 3);
   return m('ok.thawed', { flask: flaskName(f) });
@@ -294,9 +297,10 @@ export function treatContam(s: GameState, id: string): Msg {
   return m('ok.treatTried');
 }
 
+/** Com microscópio eletrônico dá para ver o micoplasma direto, sem PCR. */
 export function testMyco(s: GameState, id: string): Msg {
   const f = getFlask(s, id);
-  spend(s, { myco_pcr: 1 });
+  if (!hasScope(s.equipment.scope, 'electron')) spend(s, { myco_pcr: 1 });
   bump(s, 'mycoTests');
   if (isMyco(f) && f.contam!.level > 0.05) {
     f.contam!.detected = true;
@@ -331,12 +335,21 @@ export function disinfect(s: GameState, incId: string): Msg {
 export function shopPrice(s: GameState, itemId: string) {
   const item = SHOP.find((i) => i.id === itemId)!;
   if (item.special === 'incubator') return item.price * s.incubators.length;
+  if (item.special === 'scope') return SCOPES[s.equipment.scope + 1]?.price ?? 0;
+  if (item.special === 'vial' && levelOf(s.xp) < item.level) return Math.round(item.price * EARLY_UNLOCK_MULT);
   return item.price;
+}
+
+/** Nível exigido de verdade (o microscópio depende do próximo upgrade; criotubos podem ser antecipados). */
+export function shopLevel(s: GameState, item: (typeof SHOP)[number]) {
+  if (item.special === 'scope') return SCOPES[s.equipment.scope + 1]?.level ?? 99;
+  if (item.special === 'vial') return 1;
+  return item.level;
 }
 
 export function buy(s: GameState, itemId: string): Msg {
   const item = SHOP.find((i) => i.id === itemId) ?? fail('err.noItem');
-  if (levelOf(s.xp) < item.level) fail('err.levelLocked', { lv: item.level });
+  if (levelOf(s.xp) < shopLevel(s, item)) fail('err.levelLocked', { lv: shopLevel(s, item) });
   const price = shopPrice(s, itemId);
   if (s.money < price) fail('err.noMoney');
   switch (item.special) {
@@ -348,19 +361,34 @@ export function buy(s: GameState, itemId: string): Msg {
     case 'incubator':
       s.incubators.push({ id: uid(), name: `#${s.incubators.length + 1}`, co2Set: 5, capacity: 6, spores: 0 });
       break;
-    case 'fluo':
     case 'irradiator':
-      if (s.equipment[item.special]) fail('err.alreadyOwned');
-      s.equipment[item.special] = true;
+      if (s.equipment.irradiator) fail('err.alreadyOwned');
+      s.equipment.irradiator = true;
+      break;
+    case 'scope':
+      if (!SCOPES[s.equipment.scope + 1]) fail('err.alreadyOwned');
+      s.equipment.scope += 1;
       break;
     case 'vial':
       s.vials.push({ id: uid(), line: item.line!, markers: [], passage: LINES[item.line!].startPassage, viability: 0.95, frozenAt: s.time, contam: null });
       break;
+    case 'pass':
     default:
       s.inventory[item.inv!] = have(s, item.inv!) + item.qty!;
   }
   s.money -= price;
-  return m('ok.bought', { item: `@shop.${item.id}` });
+  if (item.marker) return m('ok.boughtVirus', { m: MARKERS[item.marker].name });
+  if (item.line) return m('ok.boughtVial', { line: LINES[item.line].name });
+  const name = item.medium
+    ? `@medium.${item.medium}`
+    : item.agent
+      ? `@agent.${item.agent}`
+      : item.special === 'pass'
+        ? `@pass.${item.id.slice(5)}`
+        : item.special === 'scope'
+          ? `@scope.${SCOPES[s.equipment.scope].id}`
+          : `@shop.${item.id}`;
+  return m('ok.bought', { item: name });
 }
 
 export function setCO2(s: GameState, incId: string, value: number) {
@@ -443,7 +471,7 @@ export function experimentQuality(f: Flask) {
   else if (cf > 0.95) q *= 0.6;
   if (f.medium !== L.medium) q *= 0.7;
   if (f.passage > 30) q *= 0.8;
-  if (L.maxPassage && f.passage > L.maxPassage) q *= 0.5;
+  if (L.maxPassage && !f.immortal && f.passage > L.maxPassage) q *= 0.5;
   if (c?.type === 'mycoplasma') q *= 1 - 0.7 * c.level; // invisível, mas estraga os dados
   return q;
 }
@@ -457,13 +485,15 @@ export function startExperiment(s: GameState, flaskId: string, agent: AgentId, r
   if (levelOf(s.xp) < A.level) fail('err.levelLocked', { lv: A.level });
   if (A.needsIrradiator && !s.equipment.irradiator) fail('err.needIrradiator');
   if (readout !== 'MTT') {
-    if (!s.equipment.fluo) fail('err.needFluo');
+    if (!hasScope(s.equipment.scope, 'fluo')) fail('err.needFluo');
     if (!f.markers.includes(readout)) fail('err.noMarker');
   }
   const needs: Record<string, number> = {};
   if (!A.needsIrradiator) needs[`drug_${agent}`] = 1;
   if (readout === 'MTT') needs.MTT = 1;
   spend(s, needs);
+  const lucky = s.boosts.lucky > 0;
+  if (lucky) s.boosts.lucky -= 1;
   s.experiments.push({
     id: uid(),
     key: expKey(f.line, agent, readout),
@@ -471,7 +501,8 @@ export function startExperiment(s: GameState, flaskId: string, agent: AgentId, r
     agent,
     readout,
     markers: [...f.markers],
-    quality: experimentQuality(f),
+    quality: lucky ? 1 : experimentQuality(f),
+    lucky,
     startedAt: s.time,
     readyAt: s.time + experimentHours(readout),
     flaskName: flaskName(f),
@@ -481,4 +512,89 @@ export function startExperiment(s: GameState, flaskId: string, agent: AgentId, r
   bump(s, 'experiments');
   addXp(s, 8);
   return m('ok.experiment', { h: experimentHours(readout) });
+}
+
+// ---------------------------------------------------------------- passes
+
+export function usePass(s: GameState, id: PassId, flaskId?: string): Msg {
+  const def = PASSES.find((p) => p.id === id) ?? fail('err.noItem');
+  const key = `pass_${id}`;
+  if (have(s, key) < 1) fail('err.noPass');
+  const f = def.flask ? (s.flasks.find((x) => x.id === flaskId) ?? fail('err.needFlask')) : null;
+  switch (id) {
+    case 'time12':
+    case 'time48': {
+      const h = id === 'time12' ? 12 : 48;
+      if (s.suspension) fail('err.suspensionPending');
+      s.boosts.autoFeedUntil = Math.max(s.boosts.autoFeedUntil, s.time + h);
+      s.inventory[key] -= 1;
+      bump(s, 'passes');
+      advance(s, h);
+      return m('ok.timeSkip', { h });
+    }
+    case 'confluence':
+      f!.live = capacity(f!) * 0.85;
+      f!.dead = f!.live * 0.04;
+      f!.glucose = MEDIA[f!.medium].glc;
+      f!.lactate = 0;
+      f!.ammonia = 0;
+      break;
+    case 'autofeed':
+      s.boosts.autoFeedUntil = Math.max(s.boosts.autoFeedUntil, s.time) + 72;
+      break;
+    case 'shield':
+      s.boosts.shieldUntil = Math.max(s.boosts.shieldUntil, s.time) + 48;
+      break;
+    case 'lucky':
+      s.boosts.lucky += 1;
+      break;
+    case 'sale2x':
+      s.boosts.sale2xUntil = Math.max(s.boosts.sale2xUntil, s.time) + 24;
+      break;
+    case 'xp2x':
+      s.boosts.xp2xUntil = Math.max(s.boosts.xp2xUntil, s.time) + 24;
+      break;
+    case 'express':
+      if (!f!.transduction) fail('err.noTransduction');
+      f!.transduction!.hoursLeft = 0.01;
+      break;
+    case 'cleanse':
+      if (!f!.contam) fail('err.nothingToTreat');
+      f!.contam = null;
+      f!.mycoTreat = 0;
+      break;
+    case 'telomerase':
+      if (!LINES[f!.line].maxPassage || f!.immortal) fail('err.alreadyImmortal');
+      f!.immortal = true;
+      break;
+  }
+  s.inventory[key] -= 1;
+  bump(s, 'passes');
+  return m(`ok.pass.${id}`);
+}
+
+// ---------------------------------------------------------------- minijogos
+
+export function gamePlaysToday(s: GameState, id: GameId) {
+  const day = Math.floor(s.time / 24);
+  return s.gamePlays.day === day ? (s.gamePlays.counts[id] ?? 0) : 0;
+}
+
+/** Moedas que uma pontuação rende agora (considera o limite e as jogadas do dia). */
+export function gameCoins(s: GameState, id: GameId, score: number) {
+  const g = GAMES.find((x) => x.id === id)!;
+  return Math.round(Math.min(g.cap, Math.max(0, score) * g.rate) * gameMult(gamePlaysToday(s, id)));
+}
+
+export function rewardGame(s: GameState, id: GameId, score: number): Msg {
+  const coins = gameCoins(s, id, score);
+  const day = Math.floor(s.time / 24);
+  if (s.gamePlays.day !== day) s.gamePlays = { day, counts: {} };
+  const plays = s.gamePlays.counts[id] ?? 0;
+  s.gamePlays.counts[id] = plays + 1;
+  s.bestScores[id] = Math.max(s.bestScores[id] ?? 0, score);
+  s.money += coins;
+  bump(s, 'games');
+  addXp(s, Math.min(10, Math.round(coins / 10)));
+  return m('ok.gameReward', { coins });
 }
