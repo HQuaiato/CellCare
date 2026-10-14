@@ -1,11 +1,10 @@
-import type { AgentId, FlaskType, LineId, MarkerId, MediumId, Readout } from './types';
+import type { AgentId, ContamType, FlaskType, LineId, MarkerId, MediumId, Readout } from './types';
 
 /** 1 minuto real = 1 hora de jogo. Um dia no lab dura 24 minutos. */
-export const GAME_HOURS_PER_REAL_MINUTE = 1;
-/** Máximo de horas de jogo simuladas enquanto o jogador está fora. */
 export const OFFLINE_CAP_H = 12;
 export const CELLS_PER_VIAL = 1e6;
 export const SPEEDS = [0, 1, 4];
+export const CURRENCY = '◈';
 
 // ---------------------------------------------------------------- frascos
 
@@ -15,35 +14,35 @@ export const FLASKS: Record<FlaskType, { cap: number; vol: number; trypsin: numb
   T175: { cap: 17.5e6, vol: 35, trypsin: 6 },
 };
 export const FLASK_TYPES: FlaskType[] = ['T25', 'T75', 'T175'];
-/** células em suspensão: densidade máxima por mL */
 export const SUSPENSION_MAX_DENSITY = 2e6;
 
 // ---------------------------------------------------------------- meios
 
 export interface MediumDef {
-  name: string;
-  /** bicarbonato, mM — define o pH em equilíbrio com o CO2 da estufa */
+  /** bicarbonato, mM: define o pH em equilíbrio com o CO2 da estufa */
   hco3: number;
   /** glicose, mM */
   glc: number;
-  /** precisa de 10% de SFB para ficar completo */
-  serum: boolean;
+  /** fração de SFB no meio completo */
+  serum: number;
+  price: number;
 }
 
 export const MEDIA: Record<MediumId, MediumDef> = {
-  DMEM: { name: 'DMEM alta glicose', hco3: 44, glc: 25, serum: true },
-  RPMI: { name: 'RPMI-1640', hco3: 23.8, glc: 11.1, serum: true },
-  MCCOY: { name: "McCoy's 5A", hco3: 26.2, glc: 16.7, serum: true },
-  F12K: { name: 'F-12K', hco3: 29.8, glc: 7, serum: true },
-  MEM: { name: 'EMEM', hco3: 26.2, glc: 5.6, serum: true },
-  MTESR: { name: 'mTeSR (sem soro)', hco3: 29, glc: 17.5, serum: false },
+  MEM: { hco3: 26.2, glc: 5.6, serum: 0.1, price: 40 },
+  DMEM: { hco3: 44, glc: 25, serum: 0.1, price: 50 },
+  F12K: { hco3: 29.8, glc: 7, serum: 0.1, price: 70 },
+  MCCOY: { hco3: 26.2, glc: 16.7, serum: 0.1, price: 65 },
+  RPMI: { hco3: 23.8, glc: 11.1, serum: 0.1, price: 55 },
+  EGM2: { hco3: 14, glc: 5.6, serum: 0.02, price: 320 },
+  MTESR: { hco3: 29, glc: 17.5, serum: 0, price: 400 },
 };
+export const MEDIUM_ORDER = Object.keys(MEDIA) as MediumId[];
 
 // ---------------------------------------------------------------- linhagens
 
 export interface LineDef {
   name: string;
-  origin: string;
   medium: MediumId;
   /** tempo de duplicação, h */
   td: number;
@@ -52,139 +51,34 @@ export interface LineDef {
   size: number;
   /** consumo de glicose, µmol / 10^6 células / h */
   glcRate: number;
-  /** R$ por milhão de células */
+  /** moedas por milhão de células */
   price: number;
   hue: number;
   level: number;
-  /** sensibilidade a estresse (multiplica a taxa de morte) */
+  /** sensibilidade a estresse e contaminação */
   sens: number;
   p53: 'wt' | 'inactive';
   maxPassage?: number;
-  fact: string;
+  startPassage: number;
 }
 
 export const LINES: Record<LineId, LineDef> = {
-  HeLa: {
-    name: 'HeLa',
-    origin: 'Adenocarcinoma de colo do útero (HPV-18)',
-    medium: 'DMEM',
-    td: 24,
-    suspension: false,
-    size: 1,
-    glcRate: 0.6,
-    price: 15,
-    hue: 330,
-    level: 1,
-    sens: 0.7,
-    p53: 'inactive',
-    fact: 'Primeira linhagem humana imortalizada (1951), derivada das células de Henrietta Lacks. A E6 do HPV degrada p53.',
-  },
-  HEK293T: {
-    name: 'HEK293T',
-    origin: 'Rim embrionário humano + antígeno T do SV40',
-    medium: 'DMEM',
-    td: 20,
-    suspension: false,
-    size: 1.4,
-    glcRate: 0.55,
-    price: 20,
-    hue: 200,
-    level: 2,
-    sens: 1.1,
-    p53: 'inactive',
-    fact: 'A fábrica de lentivírus do laboratório. Adere fracamente: cuidado ao lavar com PBS!',
-  },
-  U2OS: {
-    name: 'U2OS',
-    origin: 'Osteossarcoma',
-    medium: 'MCCOY',
-    td: 30,
-    suspension: false,
-    size: 0.7,
-    glcRate: 0.5,
-    price: 28,
-    hue: 30,
-    level: 3,
-    sens: 0.9,
-    p53: 'wt',
-    fact: 'Grande e achatada: a queridinha da microscopia, ótima para contar focos de 53BP1.',
-  },
-  MCF7: {
-    name: 'MCF-7',
-    origin: 'Adenocarcinoma de mama (ER+)',
-    medium: 'MEM',
-    td: 36,
-    suspension: false,
-    size: 1.2,
-    glcRate: 0.4,
-    price: 32,
-    hue: 280,
-    level: 4,
-    sens: 1,
-    p53: 'wt',
-    fact: 'Modelo clássico de câncer de mama luminal, responsiva a estrógeno. Cresce em ilhas.',
-  },
-  A549: {
-    name: 'A549',
-    origin: 'Adenocarcinoma de pulmão (KRAS mutado)',
-    medium: 'F12K',
-    td: 22,
-    suspension: false,
-    size: 1,
-    glcRate: 0.6,
-    price: 30,
-    hue: 140,
-    level: 5,
-    sens: 0.8,
-    p53: 'wt',
-    fact: 'Semelhante a pneumócito tipo II; muito usada em estudos de quimio e radiorresistência.',
-  },
-  Jurkat: {
-    name: 'Jurkat',
-    origin: 'Leucemia de linfócitos T',
-    medium: 'RPMI',
-    td: 28,
-    suspension: true,
-    size: 1,
-    glcRate: 0.35,
-    price: 38,
-    hue: 50,
-    level: 6,
-    sens: 1,
-    p53: 'inactive',
-    fact: 'Cresce em suspensão: nada de tripsina, é só centrifugar e ressuspender.',
-  },
-  HDF: {
-    name: 'HDF',
-    origin: 'Fibroblasto dérmico humano primário',
-    medium: 'DMEM',
-    td: 40,
-    suspension: false,
-    size: 0.4,
-    glcRate: 0.45,
-    price: 70,
-    hue: 15,
-    level: 7,
-    sens: 1.2,
-    p53: 'wt',
-    maxPassage: 18,
-    fact: 'Célula normal: obedece ao limite de Hayflick e entra em senescência depois de muitas passagens.',
-  },
-  iPSC: {
-    name: 'iPSC',
-    origin: 'Célula-tronco pluripotente induzida',
-    medium: 'MTESR',
-    td: 22,
-    suspension: false,
-    size: 1.6,
-    glcRate: 0.7,
-    price: 220,
-    hue: 170,
-    level: 8,
-    sens: 2,
-    p53: 'wt',
-    fact: 'Pluripotente e exigente: meio sem soro, troca frequente e nunca deixe passar da confluência.',
-  },
+  L929: { name: 'L929', medium: 'MEM', td: 24, suspension: false, size: 1.2, glcRate: 0.45, price: 6, hue: 95, level: 1, sens: 0.5, p53: 'wt', startPassage: 10 },
+  HeLa: { name: 'HeLa', medium: 'DMEM', td: 24, suspension: false, size: 1, glcRate: 0.6, price: 15, hue: 330, level: 1, sens: 0.7, p53: 'inactive', startPassage: 5 },
+  HEK293T: { name: 'HEK293T', medium: 'DMEM', td: 20, suspension: false, size: 1.4, glcRate: 0.55, price: 20, hue: 200, level: 2, sens: 1.1, p53: 'inactive', startPassage: 5 },
+  A549: { name: 'A549', medium: 'F12K', td: 22, suspension: false, size: 1, glcRate: 0.6, price: 22, hue: 140, level: 2, sens: 0.8, p53: 'wt', startPassage: 5 },
+  MCF7: { name: 'MCF-7', medium: 'MEM', td: 36, suspension: false, size: 1.2, glcRate: 0.4, price: 30, hue: 280, level: 3, sens: 1, p53: 'wt', startPassage: 5 },
+  U2OS: { name: 'U2OS', medium: 'MCCOY', td: 30, suspension: false, size: 0.7, glcRate: 0.5, price: 28, hue: 30, level: 3, sens: 0.9, p53: 'wt', startPassage: 5 },
+  MDA231: { name: 'MDA-MB-231', medium: 'DMEM', td: 32, suspension: false, size: 0.9, glcRate: 0.65, price: 34, hue: 300, level: 4, sens: 0.8, p53: 'inactive', startPassage: 5 },
+  A375: { name: 'A375', medium: 'DMEM', td: 22, suspension: false, size: 1, glcRate: 0.55, price: 34, hue: 10, level: 4, sens: 0.8, p53: 'wt', startPassage: 5 },
+  U87: { name: 'U87 MG', medium: 'MEM', td: 34, suspension: false, size: 0.7, glcRate: 0.5, price: 38, hue: 250, level: 5, sens: 0.9, p53: 'wt', startPassage: 5 },
+  A172: { name: 'A172', medium: 'DMEM', td: 38, suspension: false, size: 0.8, glcRate: 0.45, price: 38, hue: 225, level: 5, sens: 0.9, p53: 'wt', startPassage: 5 },
+  Jurkat: { name: 'Jurkat', medium: 'RPMI', td: 28, suspension: true, size: 1, glcRate: 0.35, price: 40, hue: 50, level: 6, sens: 1, p53: 'inactive', startPassage: 5 },
+  MRC5: { name: 'MRC-5', medium: 'MEM', td: 30, suspension: false, size: 0.45, glcRate: 0.4, price: 60, hue: 40, level: 7, sens: 1.1, p53: 'wt', maxPassage: 28, startPassage: 12 },
+  IMR90: { name: 'IMR-90', medium: 'MEM', td: 32, suspension: false, size: 0.45, glcRate: 0.4, price: 65, hue: 65, level: 7, sens: 1.1, p53: 'wt', maxPassage: 26, startPassage: 10 },
+  HDF: { name: 'HDF', medium: 'DMEM', td: 40, suspension: false, size: 0.4, glcRate: 0.45, price: 75, hue: 15, level: 8, sens: 1.2, p53: 'wt', maxPassage: 18, startPassage: 5 },
+  HUVEC: { name: 'HUVEC', medium: 'EGM2', td: 30, suspension: false, size: 0.6, glcRate: 0.5, price: 120, hue: 355, level: 9, sens: 1.5, p53: 'wt', maxPassage: 9, startPassage: 2 },
+  iPSC: { name: 'iPSC', medium: 'MTESR', td: 22, suspension: false, size: 1.6, glcRate: 0.7, price: 220, hue: 170, level: 10, sens: 2, p53: 'wt', startPassage: 25 },
 };
 export const LINE_ORDER = Object.keys(LINES) as LineId[];
 
@@ -192,8 +86,6 @@ export const LINE_ORDER = Object.keys(LINES) as LineId[];
 
 export interface MarkerDef {
   name: string;
-  desc: string;
-  /** multiplicador de valor de venda (+bonus) */
   bonus: number;
   price: number;
   level: number;
@@ -201,54 +93,17 @@ export interface MarkerDef {
 }
 
 export const MARKERS: Record<MarkerId, MarkerDef> = {
-  H2B: {
-    name: 'H2B-GFP',
-    desc: 'Histona H2B fluorescente: núcleos verdes, mitoses e micronúcleos visíveis.',
-    bonus: 0.3,
-    price: 250,
-    level: 2,
-    color: '#4ade80',
-  },
-  LUC: {
-    name: 'Luciferase',
-    desc: 'Bioluminescência: leitura rápida de viabilidade e modelos in vivo.',
-    bonus: 0.4,
-    price: 300,
-    level: 3,
-    color: '#fde047',
-  },
-  '53BP1': {
-    name: '53BP1-mCherry',
-    desc: 'Repórter de quebras de dupla fita: cada foco é um sítio de reparo.',
-    bonus: 0.6,
-    price: 450,
-    level: 3,
-    color: '#f43f5e',
-  },
-  FUCCI: {
-    name: 'FUCCI',
-    desc: 'Ciclo celular ao vivo: G1 vermelho, S/G2/M verde.',
-    bonus: 0.7,
-    price: 500,
-    level: 4,
-    color: '#f97316',
-  },
-  LC3: {
-    name: 'GFP-LC3',
-    desc: 'Autofagossomos aparecem como puncta verdes no citoplasma.',
-    bonus: 0.5,
-    price: 400,
-    level: 5,
-    color: '#22c55e',
-  },
+  H2B: { name: 'H2B-GFP', bonus: 0.3, price: 250, level: 2, color: '#4ade80' },
+  LUC: { name: 'Luciferase', bonus: 0.4, price: 300, level: 3, color: '#eab308' },
+  '53BP1': { name: '53BP1-mCherry', bonus: 0.6, price: 450, level: 3, color: '#f43f5e' },
+  FUCCI: { name: 'FUCCI', bonus: 0.7, price: 500, level: 4, color: '#f97316' },
+  LC3: { name: 'GFP-LC3', bonus: 0.5, price: 400, level: 5, color: '#22c55e' },
 };
 export const MARKER_ORDER = Object.keys(MARKERS) as MarkerId[];
 
 // ---------------------------------------------------------------- agentes terapêuticos
 
 export interface AgentDef {
-  name: string;
-  cls: string;
   price: number;
   doses: number;
   level: number;
@@ -256,191 +111,109 @@ export interface AgentDef {
 }
 
 export const AGENTS: Record<AgentId, AgentDef> = {
-  cisplatin: { name: 'Cisplatina', cls: 'Quimio — ligações cruzadas no DNA', price: 120, doses: 5, level: 1 },
-  etoposide: { name: 'Etoposídeo', cls: 'Quimio — inibidor de topoisomerase II', price: 140, doses: 5, level: 2 },
-  doxorubicin: { name: 'Doxorrubicina', cls: 'Quimio — antraciclina intercalante', price: 160, doses: 5, level: 3 },
-  radiation: { name: 'Radiação ionizante', cls: 'Radio — 4 Gy de raios X', price: 0, doses: 0, level: 3, needsIrradiator: true },
-  paclitaxel: { name: 'Paclitaxel', cls: 'Quimio — estabiliza microtúbulos', price: 180, doses: 5, level: 4 },
-  hydroxyurea: { name: 'Hidroxiureia', cls: 'Inibidor da ribonucleotídeo redutase', price: 90, doses: 5, level: 4 },
-  rapamycin: { name: 'Rapamicina', cls: 'Inibidor de mTORC1', price: 200, doses: 5, level: 5 },
-  chloroquine: { name: 'Cloroquina', cls: 'Bloqueia a fusão autofagossomo-lisossomo', price: 110, doses: 5, level: 5 },
+  cisplatin: { price: 110, doses: 5, level: 1 },
+  etoposide: { price: 130, doses: 5, level: 2 },
+  doxorubicin: { price: 150, doses: 5, level: 3 },
+  radiation: { price: 0, doses: 0, level: 3, needsIrradiator: true },
+  paclitaxel: { price: 170, doses: 5, level: 4 },
+  hydroxyurea: { price: 90, doses: 5, level: 4 },
+  temozolomide: { price: 160, doses: 5, level: 5 },
+  rapamycin: { price: 190, doses: 5, level: 5 },
+  chloroquine: { price: 100, doses: 5, level: 5 },
 };
 export const AGENT_ORDER = Object.keys(AGENTS) as AgentId[];
 
-const DNA_DAMAGE: AgentId[] = ['cisplatin', 'etoposide', 'doxorubicin', 'radiation'];
+const DNA_DAMAGE: AgentId[] = ['cisplatin', 'etoposide', 'doxorubicin', 'radiation', 'temozolomide'];
 
-// ---------------------------------------------------------------- achados científicos
+// ---------------------------------------------------------------- achados científicos (relevância)
 
-interface FindingDef {
-  text: string;
-  rel: number;
-}
-
-const FINDINGS: Record<AgentId, Partial<Record<Readout, FindingDef>>> = {
-  cisplatin: {
-    MTT: { text: 'reduz a viabilidade de forma dose-dependente', rel: 0.4 },
-    '53BP1': { text: 'induz focos de 53BP1 tardios, no reparo de ligações cruzadas', rel: 0.85 },
-    FUCCI: { text: 'acumula células em S/G2', rel: 0.6 },
-    H2B: { text: 'causa fragmentação nuclear apoptótica', rel: 0.5 },
-    LC3: { text: 'induz autofagia discreta como resposta ao estresse', rel: 0.3 },
-    LUC: { text: 'derruba o sinal de luciferase em 48 h', rel: 0.45 },
-  },
-  etoposide: {
-    MTT: { text: 'reduz a viabilidade de forma dose-dependente', rel: 0.4 },
-    '53BP1': { text: 'induz focos de 53BP1 rápidos, por quebras mediadas pela Topo II', rel: 0.9 },
-    FUCCI: { text: 'provoca parada em G2 (núcleos verdes)', rel: 0.7 },
-    H2B: { text: 'gera micronúcleos após a mitose', rel: 0.55 },
-    LC3: { text: 'induz autofagia leve', rel: 0.3 },
-    LUC: { text: 'reduz o sinal de luciferase', rel: 0.45 },
-  },
-  doxorubicin: {
-    MTT: { text: 'reduz a viabilidade em baixas concentrações', rel: 0.45 },
-    '53BP1': { text: 'induz focos de 53BP1 persistentes', rel: 0.8 },
-    FUCCI: { text: 'acumula células em G2', rel: 0.6 },
-    H2B: { text: 'induz núcleos grandes e achatados, típicos de senescência', rel: 0.65 },
-    LC3: { text: 'aumenta os puncta de LC3', rel: 0.4 },
-    LUC: { text: 'reduz o sinal de luciferase', rel: 0.45 },
-  },
-  radiation: {
-    MTT: { text: 'reduz a proliferação nas 48 h seguintes', rel: 0.4 },
-    '53BP1': { text: 'induz focos de 53BP1 (IRIF) que se resolvem em 24 h', rel: 1 },
-    FUCCI: { text: 'ativa checkpoints do ciclo celular', rel: 0.8 },
-    H2B: { text: 'gera micronúcleos e pontes de cromatina', rel: 0.65 },
-    LC3: { text: 'induz autofagia citoprotetora', rel: 0.35 },
-    LUC: { text: 'reduz a sobrevivência clonogênica', rel: 0.6 },
-  },
-  paclitaxel: {
-    MTT: { text: 'reduz a viabilidade em concentrações nanomolares', rel: 0.45 },
-    FUCCI: { text: 'prende as células em mitose (verde intenso, células arredondadas)', rel: 0.9 },
-    H2B: { text: 'causa catástrofe mitótica com núcleos multilobulados', rel: 0.9 },
-    '53BP1': { text: 'gera focos de 53BP1 secundários após a mitose falha', rel: 0.4 },
-    LC3: { text: 'altera a distribuição de LC3 por interferir nos microtúbulos', rel: 0.35 },
-    LUC: { text: 'reduz o sinal de luciferase', rel: 0.45 },
-  },
-  hydroxyurea: {
-    MTT: { text: 'tem efeito citostático reversível', rel: 0.3 },
-    FUCCI: { text: 'prende as células no início da fase S (amarelo-verde)', rel: 0.9 },
-    '53BP1': { text: 'induz estresse replicativo com focos de 53BP1', rel: 0.6 },
-    H2B: { text: 'aumenta o tamanho nuclear sem mitoses', rel: 0.3 },
-  },
-  rapamycin: {
-    MTT: { text: 'reduz a proliferação sem matar as células', rel: 0.3 },
-    LC3: { text: 'induz autofagia (aumento de puncta de LC3)', rel: 0.9 },
-    FUCCI: { text: 'acumula células em G1 (núcleos vermelhos)', rel: 0.65 },
-    LUC: { text: 'reduz o sinal metabólico de luciferase', rel: 0.4 },
-  },
-  chloroquine: {
-    MTT: { text: 'é tóxica apenas em altas doses', rel: 0.3 },
-    LC3: { text: 'bloqueia o fluxo autofágico (acúmulo de LC3)', rel: 1 },
-    H2B: { text: 'causa vacuolização sem dano nuclear', rel: 0.3 },
-  },
+const FINDING_REL: Record<AgentId, Partial<Record<Readout, number>>> = {
+  cisplatin: { MTT: 0.4, '53BP1': 0.85, FUCCI: 0.6, H2B: 0.5, LC3: 0.3, LUC: 0.45 },
+  etoposide: { MTT: 0.4, '53BP1': 0.9, FUCCI: 0.7, H2B: 0.55, LC3: 0.3, LUC: 0.45 },
+  doxorubicin: { MTT: 0.45, '53BP1': 0.8, FUCCI: 0.6, H2B: 0.65, LC3: 0.4, LUC: 0.45 },
+  radiation: { MTT: 0.4, '53BP1': 1, FUCCI: 0.8, H2B: 0.65, LC3: 0.35, LUC: 0.6 },
+  paclitaxel: { MTT: 0.45, FUCCI: 0.9, H2B: 0.9, '53BP1': 0.4, LC3: 0.35, LUC: 0.45 },
+  hydroxyurea: { MTT: 0.3, FUCCI: 0.9, '53BP1': 0.6, H2B: 0.3 },
+  temozolomide: { MTT: 0.5, '53BP1': 0.85, FUCCI: 0.8, H2B: 0.5, LC3: 0.7, LUC: 0.5 },
+  rapamycin: { MTT: 0.3, LC3: 0.9, FUCCI: 0.65, LUC: 0.4 },
+  chloroquine: { MTT: 0.3, LC3: 1, H2B: 0.3 },
 };
 
-export function finding(agent: AgentId, readout: Readout, line: LineId): FindingDef {
-  const base = FINDINGS[agent][readout] ?? {
-    text: 'não mostra efeito evidente (resultado negativo, que também é ciência!)',
-    rel: 0.2,
-  };
-  let text = base.text;
-  if (readout === 'FUCCI' && DNA_DAMAGE.includes(agent)) {
-    text +=
-      LINES[line].p53 === 'wt'
-        ? ', com parada em G1 e G2 (p53 funcional)'
-        : ', sem parada em G1 e só em G2 (p53 inativo)';
-  }
-  return { text, rel: base.rel };
+/** chave do texto do achado + relevância (0–1) */
+export function finding(agent: AgentId, readout: Readout, line: LineId) {
+  let rel = FINDING_REL[agent][readout];
+  const key = rel === undefined ? 'finding.none' : `finding.${agent}.${readout}`;
+  rel ??= 0.2;
+  if (agent === 'temozolomide' && (line === 'U87' || line === 'A172')) rel *= 1.3;
+  const suffix =
+    readout === 'FUCCI' && DNA_DAMAGE.includes(agent)
+      ? LINES[line].p53 === 'wt'
+        ? 'finding.p53wt'
+        : 'finding.p53null'
+      : null;
+  return { key, suffix, rel };
 }
 
-export const JOURNALS: { name: string; min: number }[] = [
-  { name: 'Grande Revista de Ciência', min: 1.1 },
-  { name: 'Mitose Reviews', min: 0.8 },
-  { name: 'Jornal de Biologia Celular Imaginária', min: 0.5 },
-  { name: 'Anais do Laboratório', min: 0 },
-];
+export const JOURNAL_MIN = [1.1, 0.8, 0.5, 0];
+
+// ---------------------------------------------------------------- contaminação
+
+export const CONTAM: Record<ContamType, { level: number; growth: number; growthProtected: number }> = {
+  bacteria: { level: 1, growth: 0.12, growthProtected: 0.03 },
+  fungus: { level: 2, growth: 0.04, growthProtected: 0.01 },
+  mycoplasma: { level: 4, growth: 0.012, growthProtected: 0.012 },
+};
 
 // ---------------------------------------------------------------- loja
 
-export type ShopCat = 'Meios' | 'Reagentes' | 'Plásticos' | 'Fármacos' | 'Vírus' | 'Equipamentos' | 'Células';
-export const SHOP_CATS: ShopCat[] = ['Meios', 'Reagentes', 'Plásticos', 'Fármacos', 'Vírus', 'Células', 'Equipamentos'];
+export type ShopCat = 'media' | 'reagents' | 'protection' | 'plastics' | 'drugs' | 'virus' | 'cells' | 'equipment';
+export const SHOP_CATS: ShopCat[] = ['media', 'reagents', 'protection', 'plastics', 'drugs', 'virus', 'cells', 'equipment'];
 
 export interface ShopItem {
   id: string;
   cat: ShopCat;
-  name: string;
-  desc: string;
   price: number;
   level: number;
-  /** chave no inventário e quantidade entregue */
   inv?: string;
   qty?: number;
-  unit?: string;
+  unit?: 'mL' | 'un' | 'doses' | 'tests' | 'aliquot' | 'courses';
   special?: 'incubator' | 'irradiator' | 'fluo' | 'co2' | 'vial';
   line?: LineId;
+  medium?: MediumId;
+  agent?: AgentId;
+  marker?: MarkerId;
 }
 
 const mediumLevel = (m: MediumId) =>
   Math.min(...LINE_ORDER.filter((l) => LINES[l].medium === m).map((l) => LINES[l].level));
 
 export const SHOP: ShopItem[] = [
-  ...(Object.keys(MEDIA) as MediumId[]).map<ShopItem>((m) => ({
-    id: `med_${m}`,
-    cat: 'Meios',
-    name: MEDIA[m].name,
-    desc: `Frasco de 500 mL · glicose ${MEDIA[m].glc} mM · NaHCO₃ ${MEDIA[m].hco3} mM${
-      MEDIA[m].serum ? '' : ' · não usa soro'
-    }`,
-    price: { DMEM: 60, RPMI: 65, MCCOY: 85, F12K: 95, MEM: 70, MTESR: 450 }[m],
-    level: mediumLevel(m),
-    inv: `med_${m}`,
-    qty: 500,
-    unit: 'mL',
-  })),
-  { id: 'FBS', cat: 'Reagentes', name: 'Soro fetal bovino (SFB)', desc: '50 mL. 10% em todo meio completo e 90% no meio de congelamento.', price: 110, level: 1, inv: 'FBS', qty: 50, unit: 'mL' },
-  { id: 'trypsin', cat: 'Reagentes', name: 'Tripsina-EDTA 0,25%', desc: '100 mL. Solta as células aderentes do frasco.', price: 40, level: 1, inv: 'trypsin', qty: 100, unit: 'mL' },
-  { id: 'PBS', cat: 'Reagentes', name: 'PBS estéril', desc: '500 mL. Lavagem antes da tripsina (remove o soro, que inibe a tripsina).', price: 20, level: 1, inv: 'PBS', qty: 500, unit: 'mL' },
-  { id: 'DMSO', cat: 'Reagentes', name: 'DMSO grau cultura', desc: '50 mL. Crioprotetor: 10% no meio de congelamento.', price: 35, level: 1, inv: 'DMSO', qty: 50, unit: 'mL' },
-  { id: 'MTT', cat: 'Reagentes', name: 'Kit MTT', desc: '10 ensaios de viabilidade celular (leitura em 48 h).', price: 120, level: 1, inv: 'MTT', qty: 10, unit: 'ensaios' },
-  { id: 'flask_T25', cat: 'Plásticos', name: 'Frascos T25', desc: '10 unidades · 25 cm² · 5 mL de meio.', price: 30, level: 1, inv: 'flask_T25', qty: 10, unit: 'un' },
-  { id: 'flask_T75', cat: 'Plásticos', name: 'Frascos T75', desc: '10 unidades · 75 cm² · 15 mL de meio.', price: 55, level: 1, inv: 'flask_T75', qty: 10, unit: 'un' },
-  { id: 'flask_T175', cat: 'Plásticos', name: 'Frascos T175', desc: '5 unidades · 175 cm² · 35 mL de meio.', price: 60, level: 2, inv: 'flask_T175', qty: 5, unit: 'un' },
-  { id: 'cryovial', cat: 'Plásticos', name: 'Criotubos', desc: '20 unidades para congelar 10⁶ células cada.', price: 30, level: 1, inv: 'cryovial', qty: 20, unit: 'un' },
-  ...AGENT_ORDER.filter((a) => !AGENTS[a].needsIrradiator).map<ShopItem>((a) => ({
-    id: `drug_${a}`,
-    cat: 'Fármacos',
-    name: AGENTS[a].name,
-    desc: `${AGENTS[a].cls} · ${AGENTS[a].doses} tratamentos`,
-    price: AGENTS[a].price,
-    level: AGENTS[a].level,
-    inv: `drug_${a}`,
-    qty: AGENTS[a].doses,
-    unit: 'doses',
-  })),
-  ...MARKER_ORDER.map<ShopItem>((m) => ({
-    id: `virus_${m}`,
-    cat: 'Vírus',
-    name: `Lentivírus ${MARKERS[m].name}`,
-    desc: `${MARKERS[m].desc} Valoriza a linhagem em +${Math.round(MARKERS[m].bonus * 100)}%.`,
-    price: MARKERS[m].price,
-    level: MARKERS[m].level,
-    inv: `virus_${m}`,
-    qty: 1,
-    unit: 'alíquota',
-  })),
-  ...LINE_ORDER.map<ShopItem>((l) => ({
-    id: `vial_${l}`,
-    cat: 'Células',
-    name: `Vial de ${LINES[l].name}`,
-    desc: `${LINES[l].origin}. 10⁶ células, congeladas em P5.`,
-    price: LINES[l].price * 12,
-    level: LINES[l].level,
-    special: 'vial',
-    line: l,
-  })),
-  { id: 'co2', cat: 'Equipamentos', name: 'Recarga do cilindro de CO₂', desc: 'Enche o cilindro que alimenta todas as estufas.', price: 60, level: 1, special: 'co2' },
-  { id: 'incubator', cat: 'Equipamentos', name: 'Nova estufa de CO₂', desc: 'Mais 6 vagas de frasco, com CO₂ ajustável próprio.', price: 1500, level: 2, special: 'incubator' },
-  { id: 'fluo', cat: 'Equipamentos', name: 'Microscópio de fluorescência', desc: 'Permite ver marcadores e fazer experimentos de imagem.', price: 2500, level: 2, special: 'fluo' },
-  { id: 'irradiator', cat: 'Equipamentos', name: 'Irradiador de raios X', desc: 'Libera experimentos de radiobiologia, sem custo por uso.', price: 4000, level: 3, special: 'irradiator' },
+  ...MEDIUM_ORDER.map<ShopItem>((m) => ({ id: `med_${m}`, cat: 'media', price: MEDIA[m].price, level: mediumLevel(m), inv: `med_${m}`, qty: 500, unit: 'mL', medium: m })),
+  { id: 'FBS', cat: 'reagents', price: 90, level: 1, inv: 'FBS', qty: 50, unit: 'mL' },
+  { id: 'trypsin', cat: 'reagents', price: 30, level: 1, inv: 'trypsin', qty: 100, unit: 'mL' },
+  { id: 'PBS', cat: 'reagents', price: 15, level: 1, inv: 'PBS', qty: 500, unit: 'mL' },
+  { id: 'DMSO', cat: 'reagents', price: 25, level: 1, inv: 'DMSO', qty: 50, unit: 'mL' },
+  { id: 'MTT', cat: 'reagents', price: 100, level: 1, inv: 'MTT', qty: 10, unit: 'tests' },
+  { id: 'penstrep', cat: 'protection', price: 25, level: 1, inv: 'penstrep', qty: 20, unit: 'mL' },
+  { id: 'abx_high', cat: 'protection', price: 50, level: 1, inv: 'abx_high', qty: 3, unit: 'doses' },
+  { id: 'ampho', cat: 'protection', price: 40, level: 2, inv: 'ampho', qty: 10, unit: 'mL' },
+  { id: 'afx_high', cat: 'protection', price: 70, level: 2, inv: 'afx_high', qty: 3, unit: 'doses' },
+  { id: 'myco_pcr', cat: 'protection', price: 80, level: 4, inv: 'myco_pcr', qty: 5, unit: 'tests' },
+  { id: 'myco_treat', cat: 'protection', price: 180, level: 4, inv: 'myco_treat', qty: 2, unit: 'courses' },
+  { id: 'flask_T25', cat: 'plastics', price: 25, level: 1, inv: 'flask_T25', qty: 10, unit: 'un' },
+  { id: 'flask_T75', cat: 'plastics', price: 45, level: 1, inv: 'flask_T75', qty: 10, unit: 'un' },
+  { id: 'flask_T175', cat: 'plastics', price: 50, level: 2, inv: 'flask_T175', qty: 5, unit: 'un' },
+  { id: 'cryovial', cat: 'plastics', price: 25, level: 1, inv: 'cryovial', qty: 20, unit: 'un' },
+  ...AGENT_ORDER.filter((a) => !AGENTS[a].needsIrradiator).map<ShopItem>((a) => ({ id: `drug_${a}`, cat: 'drugs', price: AGENTS[a].price, level: AGENTS[a].level, inv: `drug_${a}`, qty: AGENTS[a].doses, unit: 'doses', agent: a })),
+  ...MARKER_ORDER.map<ShopItem>((m) => ({ id: `virus_${m}`, cat: 'virus', price: MARKERS[m].price, level: MARKERS[m].level, inv: `virus_${m}`, qty: 1, unit: 'aliquot', marker: m })),
+  ...LINE_ORDER.map<ShopItem>((l) => ({ id: `vial_${l}`, cat: 'cells', price: Math.max(40, LINES[l].price * 12), level: LINES[l].level, special: 'vial', line: l })),
+  { id: 'co2', cat: 'equipment', price: 50, level: 1, special: 'co2' },
+  { id: 'incubator', cat: 'equipment', price: 1200, level: 2, special: 'incubator' },
+  { id: 'fluo', cat: 'equipment', price: 2000, level: 2, special: 'fluo' },
+  { id: 'irradiator', cat: 'equipment', price: 3500, level: 3, special: 'irradiator' },
 ];
+
+export const DISINFECT_COST = 20;
 
 // ---------------------------------------------------------------- níveis
 
@@ -459,11 +232,16 @@ export function levelProgress(xp: number) {
   return { lv, lo, hi, pct: (xp - lo) / (hi - lo) };
 }
 
+/** Lista para interpolação: nomes próprios crus, demais como "@chave". */
 export function unlocksAt(level: number): string[] {
   return [
-    ...LINE_ORDER.filter((l) => LINES[l].level === level).map((l) => `linhagem ${LINES[l].name}`),
-    ...MARKER_ORDER.filter((m) => MARKERS[m].level === level).map((m) => `transdução ${MARKERS[m].name}`),
-    ...AGENT_ORDER.filter((a) => AGENTS[a].level === level).map((a) => AGENTS[a].name),
-    ...SHOP.filter((i) => i.cat === 'Equipamentos' && i.level === level && i.level > 1).map((i) => i.name),
+    ...LINE_ORDER.filter((l) => LINES[l].level === level && level > 1).map((l) => LINES[l].name),
+    ...MARKER_ORDER.filter((m) => MARKERS[m].level === level).map((m) => MARKERS[m].name),
+    ...AGENT_ORDER.filter((a) => AGENTS[a].level === level && level > 1).map((a) => `@agent.${a}`),
+    ...SHOP.filter((i) => i.cat === 'equipment' && i.level === level && i.level > 1).map((i) => `@shop.${i.id}`),
+    ...(Object.keys(CONTAM) as ContamType[]).filter((c) => CONTAM[c].level === level && level > 1).map((c) => `@unlock.${c}`),
   ];
 }
+
+export const STIPEND = (level: number) => 15 + 5 * level;
+export const HELP_COOLDOWN_H = 48;

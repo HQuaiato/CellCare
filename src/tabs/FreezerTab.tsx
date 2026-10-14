@@ -5,6 +5,7 @@ import { CELLS_PER_VIAL, FLASK_TYPES, LINES, MARKERS } from '../game/data';
 import { VIAL_PREMIUM, unitPrice } from '../game/econ';
 import { act, useGame } from '../game/store';
 import type { FlaskType, Vial } from '../game/types';
+import { t } from '../i18n';
 
 export function FreezerTab({ onThaw }: { onThaw: () => void }) {
   const s = useGame();
@@ -12,32 +13,33 @@ export function FreezerTab({ onThaw }: { onThaw: () => void }) {
 
   const groups = new Map<string, Vial[]>();
   for (const v of s.vials) {
-    const k = `${v.line}|${v.markers.join('+')}|${v.passage}`;
+    const k = `${v.line}|${v.markers.join('+')}|${v.passage}|${v.contam ?? ''}`;
     groups.set(k, [...(groups.get(k) ?? []), v]);
   }
 
   if (!s.vials.length) {
     return (
-      <Empty icon="❄️" title="Nitrogênio líquido vazio">
-        <p>Tripsinize um frasco e congele criotubos (precisa de SFB, DMSO e criotubos). Criotubos valem mais na venda.</p>
+      <Empty icon="❄️" title={t('freezer.empty')}>
+        <p>{t('freezer.emptyText')}</p>
       </Empty>
     );
   }
 
   return (
-    <div className="stack">
-      <section className="card">
-        <h3>❄️ Tanque de N₂ líquido · {s.vials.length} criotubos</h3>
+    <div className="stack grid-2">
+      <section className="card span-2">
+        <h3>❄️ {t('freezer.title', { n: s.vials.length })}</h3>
         <div className="row">
-          <span className="muted">Descongelar em:</span>
+          <span className="muted">{t('freezer.thawIn')}</span>
           <div className="seg small">
-            {FLASK_TYPES.map((t) => (
-              <button key={t} className={type === t ? 'on' : ''} onClick={() => setType(t)}>
-                {t}
+            {FLASK_TYPES.map((tp) => (
+              <button key={tp} className={type === tp ? 'on' : ''} onClick={() => setType(tp)}>
+                {tp}
               </button>
             ))}
           </div>
         </div>
+        <p className="muted small">{t('freezer.hint')}</p>
       </section>
       {[...groups.values()].map((vs) => {
         const v = vs[0];
@@ -52,7 +54,7 @@ export function FreezerTab({ onThaw }: { onThaw: () => void }) {
                 {LINES[v.line].name} <small>P{v.passage}</small>
               </h3>
               <p className="muted small">
-                {v.markers.length ? v.markers.map((m) => MARKERS[m].name).join(' · ') : 'sem marcador'} · viabilidade {pct(v.viability)}
+                {v.markers.length ? v.markers.map((mk) => MARKERS[mk].name).join(' · ') : t('freezer.noMarker')} · {t('stat.viability').toLowerCase()} {pct(v.viability)}
               </p>
             </div>
             <div className="col">
@@ -62,10 +64,10 @@ export function FreezerTab({ onThaw }: { onThaw: () => void }) {
                   if (act((st) => thaw(st, v.id, type))) onThaw();
                 }}
               >
-                Descongelar
+                {t('freezer.thaw')}
               </button>
               <button className="btn small gold" onClick={() => act((st) => sellVial(st, v.id))}>
-                Vender {fmtMoney(price)}
+                {t('freezer.sell', { p: fmtMoney(price) })}
               </button>
             </div>
           </section>

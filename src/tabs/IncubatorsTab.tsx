@@ -1,31 +1,55 @@
 import { FlaskSvg } from '../components/FlaskSvg';
-import { fmtMoney, fmtNum, pct } from '../components/ui';
-import { buy, moveFlask, setCO2, shopPrice } from '../game/actions';
-import { MEDIA } from '../game/data';
-import { act, useGame } from '../game/store';
+import { Info, fmtMoney, fmtNum, pct } from '../components/ui';
+import { buy, disinfect, have, moveFlask, setCO2, setSetting, shopPrice } from '../game/actions';
+import { CONTAM, DISINFECT_COST, levelOf } from '../game/data';
 import { confluence, eqPH, flaskName } from '../game/sim';
+import { act, useGame } from '../game/store';
 import type { MediumId } from '../game/types';
+import { t } from '../i18n';
 
 export function IncubatorsTab({ openFlask }: { openFlask: (id: string) => void }) {
   const s = useGame();
   const tank = s.co2Tank;
+  const lv = levelOf(s.xp);
 
   return (
-    <div className="stack">
+    <div className="stack grid-2">
       <section className="card">
         <div className="row between">
-          <h3>🧯 Cilindro de CO₂</h3>
+          <h3>
+            🧯 {t('inc.tank')} <Info k="help.co2" />
+          </h3>
           <button className="btn small" onClick={() => act((st) => buy(st, 'co2'))}>
-            Recarregar ({fmtMoney(shopPrice(s, 'co2'))})
+            {t('inc.refill', { p: fmtMoney(shopPrice(s, 'co2')) })}
           </button>
         </div>
         <div className="bar-track tall">
           <div className={`bar-fill tone-${tank < 10 ? 'bad' : tank < 25 ? 'warn' : 'good'}`} style={{ width: `${tank}%` }} />
         </div>
-        <p className="muted small">
-          {fmtNum(tank, 0)}% · consumo ≈ {fmtNum(0.35 * s.incubators.length * 24, 0)}%/dia com {s.incubators.length} estufa(s). Sem CO₂ o
-          bicarbonato do meio não fica em equilíbrio e o pH dispara.
-        </p>
+        <p className="muted small">{t('inc.tankInfo', { pct: Math.round(tank), use: Math.round(0.35 * s.incubators.length * 24), n: s.incubators.length })}</p>
+      </section>
+
+      <section className="card">
+        <h3>
+          🛡️ {t('inc.protection')} <Info k="help.protection" />
+        </h3>
+        <label className="toggle">
+          <input type="checkbox" checked={s.settings.penstrep} onChange={(e) => act((st) => setSetting(st, 'penstrep', e.target.checked), true)} />
+          <span>
+            <b>Pen/Strep</b> · {t('inc.penstrepInfo', { n: fmtNum(have(s, 'penstrep')) })}
+          </span>
+        </label>
+        <label className={`toggle ${lv < CONTAM.fungus.level ? 'locked' : ''}`}>
+          <input
+            type="checkbox"
+            disabled={lv < CONTAM.fungus.level}
+            checked={s.settings.ampho}
+            onChange={(e) => act((st) => setSetting(st, 'ampho', e.target.checked), true)}
+          />
+          <span>
+            <b>{t('inv.ampho')}</b> · {lv < CONTAM.fungus.level ? t('err.levelLocked', { lv: CONTAM.fungus.level }) : t('inc.amphoInfo', { n: fmtNum(have(s, 'ampho')) })}
+          </span>
+        </label>
       </section>
 
       {s.incubators.map((inc) => {
@@ -34,29 +58,29 @@ export function IncubatorsTab({ openFlask }: { openFlask: (id: string) => void }
         return (
           <section className="card" key={inc.id}>
             <div className="row between">
-              <h3>🌡️ {inc.name}</h3>
-              <span className="muted">
-                37 °C · {flasks.length}/{inc.capacity} frascos
-              </span>
+              <h3>🌡️ {t('ui.incubator', { name: inc.name })}</h3>
+              <span className="muted small">{t('inc.slots', { n: flasks.length, cap: inc.capacity })}</span>
             </div>
             <label className="co2">
               <span>
                 CO₂ <b>{fmtNum(inc.co2Set)}%</b>
               </span>
-              <input
-                type="range"
-                min={0}
-                max={10}
-                step={0.5}
-                value={inc.co2Set}
-                onChange={(e) => act((st) => setCO2(st, inc.id, +e.target.value), true)}
-              />
+              <input type="range" min={0} max={10} step={0.5} value={inc.co2Set} onChange={(e) => act((st) => setCO2(st, inc.id, +e.target.value), true)} />
             </label>
             {media.length > 0 && (
               <p className="muted small">
-                pH do meio fresco nesse CO₂:{' '}
-                {media.map((m) => `${MEDIA[m].name} ${fmtNum(eqPH(m, 0, tank > 0 ? inc.co2Set : 0.04), 2)}`).join(' · ')}. Ideal: 7,2–7,6.
+                {t('inc.freshPh')} {media.map((md) => `${t(`medium.${md}.short`)} ${fmtNum(eqPH(md, 0, tank > 0 ? inc.co2Set : 0.04), 2)}`).join(' · ')}. {t('inc.ideal')}
               </p>
+            )}
+            {lv >= CONTAM.fungus.level && (
+              <div className="row between">
+                <span className={`small ${inc.spores > 0.2 ? 'text-bad' : 'muted'}`}>
+                  🍄 {t('inc.spores', { pct: pct(inc.spores) })} <Info k="help.spores" />
+                </span>
+                <button className="btn small" onClick={() => act((st) => disinfect(st, inc.id))}>
+                  🧽 {t('inc.disinfect', { p: fmtMoney(DISINFECT_COST) })}
+                </button>
+              </div>
             )}
             <div className="shelf">
               {flasks.map((f) => (
@@ -67,14 +91,10 @@ export function IncubatorsTab({ openFlask }: { openFlask: (id: string) => void }
                     <small>{pct(confluence(f))}</small>
                   </button>
                   {s.incubators.length > 1 && (
-                    <select
-                      value={inc.id}
-                      onChange={(e) => act((st) => moveFlask(st, f.id, e.target.value), true)}
-                      aria-label="Mover para estufa"
-                    >
+                    <select value={inc.id} onChange={(e) => act((st) => moveFlask(st, f.id, e.target.value), true)} aria-label={t('inc.move')}>
                       {s.incubators.map((i) => (
                         <option key={i.id} value={i.id}>
-                          {i.name}
+                          {t('ui.incubator', { name: i.name })}
                         </option>
                       ))}
                     </select>
@@ -82,7 +102,9 @@ export function IncubatorsTab({ openFlask }: { openFlask: (id: string) => void }
                 </div>
               ))}
               {Array.from({ length: inc.capacity - flasks.length }, (_, i) => (
-                <div key={i} className="shelf-empty">vaga</div>
+                <div key={i} className="shelf-empty">
+                  {t('inc.empty')}
+                </div>
               ))}
             </div>
           </section>

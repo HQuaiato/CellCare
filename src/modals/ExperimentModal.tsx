@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Modal, pct } from '../components/ui';
 import { experimentHours, experimentQuality, have, startExperiment } from '../game/actions';
-import { AGENT_ORDER, AGENTS, LINES, MARKERS, levelOf } from '../game/data';
+import { AGENT_ORDER, AGENTS, LINES, MARKERS, finding, levelOf } from '../game/data';
 import { REPLICATES_FOR_PAPER, expKey } from '../game/research';
 import { act, useGame } from '../game/store';
 import type { AgentId, Flask, Readout } from '../game/types';
+import { t } from '../i18n';
 
 export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () => void }) {
   const s = useGame();
@@ -21,48 +22,39 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
   const readoutAvail = (r: Readout) => (r === 'MTT' ? have(s, 'MTT') > 0 : s.equipment.fluo);
 
   return (
-    <Modal title="🧪 Novo experimento" onClose={onClose}>
-      <p className="muted">
-        O frasco inteiro vai para o ensaio. Use células saudáveis (viabilidade &gt; 90%, confluência 50–90%) para ter
-        dados confiáveis. Com {REPLICATES_FOR_PAPER} réplicas bem-sucedidas, você publica um artigo.
-      </p>
-      <div className={`quality q-${q >= 0.8 ? 'good' : q >= 0.5 ? 'warn' : 'bad'}`}>
-        Qualidade esperada das amostras: <b>{pct(q)}</b>
-      </div>
+    <Modal title={`🧪 ${t('exp.title')}`} onClose={onClose}>
+      <p className="muted small">{t('exp.intro', { n: REPLICATES_FOR_PAPER })}</p>
+      <div className={`quality q-${q >= 0.8 ? 'good' : q >= 0.5 ? 'warn' : 'bad'}`}>{t('exp.quality', { q: pct(q) })}</div>
 
-      <h4>1. Agente terapêutico</h4>
+      <h4>1. {t('exp.agent')}</h4>
       <div className="pick">
         {agents.map((a) => (
           <button key={a} className={agent === a ? 'on' : ''} disabled={!agentAvail(a)} onClick={() => setAgent(a)}>
-            <b>{AGENTS[a].name}</b>
+            <b>{t(`agent.${a}`)}</b>
             <small>
-              {AGENTS[a].cls}
+              {t(`agentcls.${a}`)}
               <br />
-              {AGENTS[a].needsIrradiator ? (s.equipment.irradiator ? 'irradiador pronto' : 'precisa do irradiador') : `${have(s, `drug_${a}`)} doses`}
+              {AGENTS[a].needsIrradiator ? t(s.equipment.irradiator ? 'exp.irradiatorReady' : 'exp.needIrradiator') : t('exp.doses', { n: have(s, `drug_${a}`) })}
             </small>
           </button>
         ))}
       </div>
 
-      <h4>2. Leitura</h4>
+      <h4>2. {t('exp.readout')}</h4>
       <div className="pick">
         {readouts.map((r) => (
           <button key={r} className={readout === r ? 'on' : ''} disabled={!readoutAvail(r)} onClick={() => setReadout(r)}>
-            <b>{r === 'MTT' ? 'Viabilidade (MTT)' : `Imagem: ${MARKERS[r].name}`}</b>
-            <small>
-              {r === 'MTT' ? `${have(s, 'MTT')} ensaios · 48 h` : s.equipment.fluo ? 'microscopia de fluorescência · 24 h' : 'precisa do microscópio de fluorescência'}
-            </small>
+            <b>{r === 'MTT' ? t('exp.mtt') : t('exp.imaging', { m: MARKERS[r].name })}</b>
+            <small>{r === 'MTT' ? t('exp.mttSub', { n: have(s, 'MTT') }) : t(s.equipment.fluo ? 'exp.imagingSub' : 'culture.needFluo')}</small>
           </button>
         ))}
       </div>
-      {flask.markers.length === 0 && (
-        <p className="hint">💡 Células com marcadores (FUCCI, 53BP1, LC3…) rendem descobertas de maior impacto.</p>
-      )}
+      {flask.markers.length === 0 && <p className="hint">💡 {t('exp.markerHint')}</p>}
 
-      {key && (
-        <p className="muted">
-          {LINES[flask.line].name} + {AGENTS[agent!].name}: {n}/{REPLICATES_FOR_PAPER} réplicas
-          {s.results[key] && <> · achado até agora: <i>{s.results[key]}</i></>}
+      {key && agent && (
+        <p className="muted small">
+          {t('exp.progress', { line: LINES[flask.line].name, agent: `@agent.${agent}`, n, total: REPLICATES_FOR_PAPER })}
+          {n > 0 && <> · <i>{t(finding(agent, readout, flask.line).key)}</i></>}
         </p>
       )}
 
@@ -73,7 +65,7 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
           if (agent && act((st) => startExperiment(st, flask.id, agent, readout))) onClose();
         }}
       >
-        Iniciar ({experimentHours(readout)} h)
+        {t('exp.start', { h: experimentHours(readout) })}
       </button>
     </Modal>
   );

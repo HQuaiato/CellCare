@@ -1,33 +1,27 @@
-import { AGENTS, CELLS_PER_VIAL, FLASKS, LINES, MARKERS, MEDIA, SHOP, levelOf } from './data';
-import { VIAL_PREMIUM, addXp, log, sellCells } from './econ';
+import { AGENTS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, FLASKS, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, SHOP, levelOf } from './data';
+import { VIAL_PREMIUM, addXp, bump, log, m, sellCells } from './econ';
+import { QUESTS } from './quests';
 import { expKey } from './research';
-import { capacity, confluence, eqPH, flaskName, viability } from './sim';
-import type { AgentId, Flask, FlaskType, GameState, LineId, MarkerId, MediumId, Readout } from './types';
+import { capacity, confluence, eqPH, flaskName, isMyco, viability } from './sim';
+import type { AgentId, ContamType, Flask, FlaskType, GameState, LineId, MarkerId, MediumId, Msg, Readout } from './types';
 
-export class GameError extends Error {}
-const fail = (msg: string): never => {
-  throw new GameError(msg);
+export class GameError extends Error {
+  constructor(public msg: Msg) {
+    super(msg.k);
+  }
+}
+const fail = (k: string, p?: Msg['p']): never => {
+  throw new GameError(m(k, p));
 };
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
-const fmt = (n: number) => (Math.round(n * 10) / 10).toLocaleString('pt-BR');
 
-const INV_LABEL: Record<string, string> = {
-  FBS: 'SFB',
-  trypsin: 'tripsina',
-  PBS: 'PBS',
-  DMSO: 'DMSO',
-  cryovial: 'criotubos',
-  MTT: 'kit MTT',
-  flask_T25: 'frascos T25',
-  flask_T75: 'frascos T75',
-  flask_T175: 'frascos T175',
-};
-export function invLabel(key: string) {
-  if (key.startsWith('med_')) return MEDIA[key.slice(4) as MediumId].name;
-  if (key.startsWith('drug_')) return AGENTS[key.slice(5) as AgentId].name;
-  if (key.startsWith('virus_')) return `lentivírus ${MARKERS[key.slice(6) as MarkerId].name}`;
-  return INV_LABEL[key] ?? key;
+/** Chave de tradução para um item de inventário. */
+export function invKey(key: string) {
+  if (key.startsWith('med_')) return `medium.${key.slice(4)}`;
+  if (key.startsWith('drug_')) return `agent.${key.slice(5)}`;
+  if (key.startsWith('virus_')) return `shop.virusOf`;
+  return `inv.${key}`;
 }
 
 export const have = (s: GameState, key: string) => s.inventory[key] ?? 0;
@@ -35,15 +29,36 @@ export const have = (s: GameState, key: string) => s.inventory[key] ?? 0;
 /** Verifica todos os insumos de uma vez e só então consome. */
 function spend(s: GameState, needs: Record<string, number>) {
   for (const [k, v] of Object.entries(needs)) {
-    if (v > 0 && have(s, k) < v - 1e-9)
-      fail(`Falta ${invLabel(k)}: precisa ${fmt(v)}, tem ${fmt(have(s, k))}. Compre na loja.`);
+    if (v > 0 && have(s, k) < v - 1e-9) {
+      const marker = k.startsWith('virus_') ? ' ' + MARKERS[k.slice(6) as MarkerId].name : '';
+      fail('err.missing', { item: '@' + invKey(k), marker, need: v, have: have(s, k) });
+    }
   }
   for (const [k, v] of Object.entries(needs)) s.inventory[k] = have(s, k) - v;
 }
 
-/** Meio completo: 90% meio basal + 10% SFB (exceto meios sem soro). */
+/** Meio completo: meio basal + SFB (fração depende do meio). */
 export function mediumNeeds(medium: MediumId, vol: number): Record<string, number> {
-  return MEDIA[medium].serum ? { [`med_${medium}`]: vol * 0.9, FBS: vol * 0.1 } : { [`med_${medium}`]: vol };
+  const sf = MEDIA[medium].serum;
+  return sf > 0 ? { [`med_${medium}`]: vol * (1 - sf), FBS: vol * sf } : { [`med_${medium}`]: vol };
+}
+
+/** Pen/Strep e anfotericina entram a 1% do volume, se ativados e em estoque. */
+function additives(s: GameState, vol: number) {
+  const out = { needs: {} as Record<string, number>, abx: false, afx: false };
+  if (s.settings.penstrep) {
+    if (have(s, 'penstrep') >= vol * 0.01) {
+      out.needs.penstrep = vol * 0.01;
+      out.abx = true;
+    } else log(s, 'log.noPenstrep', undefined, 'warn');
+  }
+  if (s.settings.ampho && levelOf(s.xp) >= CONTAM.fungus.level) {
+    if (have(s, 'ampho') >= vol * 0.01) {
+      out.needs.ampho = vol * 0.01;
+      out.afx = true;
+    } else log(s, 'log.noAmpho', undefined, 'warn');
+  }
+  return out;
 }
 
 export function freeSlots(s: GameState) {
@@ -52,18 +67,32 @@ export function freeSlots(s: GameState) {
 
 function incubatorWithSpace(s: GameState) {
   const inc = s.incubators.find((i) => s.flasks.filter((f) => f.incubatorId === i.id).length < i.capacity);
-  return inc ?? fail('Sem espaço nas estufas! Venda, congele ou compre outra estufa.');
+  return inc ?? fail('err.noSpace');
 }
 
 function getFlask(s: GameState, id: string) {
-  return s.flasks.find((f) => f.id === id) ?? fail('Frasco não encontrado.');
+  return s.flasks.find((f) => f.id === id) ?? fail('err.noFlask');
 }
 
-function maybeContaminate(s: GameState, f: Flask, p: number) {
-  if (Math.random() < p * LINES[f.line].sens) {
-    f.contaminated = true;
-    log(s, `🦠 Ops... ${flaskName(f)} foi contaminado durante a manipulação.`, 'bad');
+/**
+ * Risco de contaminação a cada manipulação na capela.
+ * Bactéria (nível 1) e fungo (nível 2) são reduzidos por Pen/Strep e anfotericina.
+ * Micoplasma (nível 4) ignora antibióticos e passa de frasco em frasco pela capela.
+ */
+function expose(s: GameState, f: Flask, base = 1) {
+  if (f.contam) return;
+  const lv = levelOf(s.xp);
+  const sens = LINES[f.line].sens;
+  const inc = s.incubators.find((i) => i.id === f.incubatorId);
+  const r = Math.random;
+  let type: ContamType | null = null;
+  if (r() < 0.012 * base * sens * (f.abx ? 0.15 : 1)) type = 'bacteria';
+  else if (lv >= CONTAM.fungus.level && r() < (0.006 + 0.04 * (inc?.spores ?? 0)) * base * sens * (f.afx ? 0.2 : 1)) type = 'fungus';
+  else if (lv >= CONTAM.mycoplasma.level) {
+    const nMyco = s.flasks.filter((x) => isMyco(x) && x.id !== f.id).length;
+    if (r() < (0.004 + 0.03 * nMyco) * base) type = 'mycoplasma';
   }
+  if (type) f.contam = { type, level: 0.02, detected: false };
 }
 
 function createFlask(
@@ -92,7 +121,10 @@ function createFlask(
     ammonia: 0,
     pH: eqPH(medium, 0, inc.co2Set),
     markers: [...markers],
-    contaminated: false,
+    contam: null,
+    abx: false,
+    afx: false,
+    mycoTreat: 0,
     transduction: null,
     seed: Math.floor(Math.random() * 1e9),
     bornAt: s.time,
@@ -103,26 +135,35 @@ function createFlask(
   return f;
 }
 
+/** Consome meio completo + aditivos e marca o frasco com os protetores usados. */
+function fillMedium(s: GameState, f: Pick<Flask, 'abx' | 'afx'>, medium: MediumId, vol: number, extra: Record<string, number> = {}) {
+  const add = additives(s, vol);
+  spend(s, { ...extra, ...mediumNeeds(medium, vol), ...add.needs });
+  f.abx = add.abx;
+  f.afx = add.afx;
+}
+
 // ---------------------------------------------------------------- cultivo
 
-export function feed(s: GameState, id: string) {
+export function feed(s: GameState, id: string): Msg {
   const f = getFlask(s, id);
-  if (f.live < 5e3) fail('Esse frasco não tem mais células vivas. Descarte.');
-  const vol = FLASKS[f.type].vol;
-  spend(s, mediumNeeds(f.medium, vol));
+  if (f.live < 5e3) fail('err.flaskDead');
+  fillMedium(s, f, f.medium, FLASKS[f.type].vol);
   f.glucose = MEDIA[f.medium].glc;
   f.lactate = 0;
   f.ammonia = 0;
-  f.dead *= LINES[f.line].suspension ? 0.6 : 0.15; // aderentes: as mortas saem com o meio
-  maybeContaminate(s, f, 0.003);
+  f.dead *= LINES[f.line].suspension ? 0.6 : 0.15;
+  if (f.contam && f.contam.type !== 'mycoplasma') f.contam.level *= 0.7;
+  expose(s, f, 0.6);
+  bump(s, 'feeds');
   addXp(s, 2);
-  return `Meio trocado em ${flaskName(f)} 🍽️`;
+  return m('ok.feed', { flask: flaskName(f) });
 }
 
-export function passage(s: GameState, id: string) {
+export function passage(s: GameState, id: string): Msg {
   const f = getFlask(s, id);
-  if (s.suspension) fail('Termine de distribuir a suspensão atual primeiro.');
-  if (f.live < 5e4) fail('Poucas células vivas para repicar.');
+  if (s.suspension) fail('err.suspensionPending');
+  if (f.live < 5e4) fail('err.fewCells');
   const L = LINES[f.line];
   const t = FLASKS[f.type].trypsin;
   if (!L.suspension) spend(s, { PBS: t * 2, trypsin: t });
@@ -134,97 +175,158 @@ export function passage(s: GameState, id: string) {
     dead: f.dead * 0.3 + f.live * (1 - loss),
     passage: f.passage,
     from: flaskName(f),
+    contam: f.contam ? { ...f.contam } : null,
   };
-  if (f.contaminated) {
-    s.suspension.dead += s.suspension.live * 0.5;
-    s.suspension.live *= 0.5;
-  }
   s.flasks = s.flasks.filter((x) => x.id !== id);
   s.selectedFlaskId = s.flasks[0]?.id ?? null;
+  bump(s, 'passages');
   addXp(s, 5);
-  return L.suspension ? 'Células centrifugadas e ressuspendidas.' : 'Tripsinizado! Agora distribua a suspensão.';
+  return m(L.suspension ? 'ok.collected' : 'ok.trypsinized');
 }
 
 export function recommendedSeed(line: LineId, type: FlaskType) {
   return capacity({ line, type }) * 0.2;
 }
 
-export function seed(s: GameState, type: FlaskType, millions: number) {
-  const sus = s.suspension ?? fail('Não há suspensão celular.');
+export function seed(s: GameState, type: FlaskType, millions: number): Msg {
+  const sus = s.suspension ?? fail('err.noSuspension');
   const cells = millions * 1e6;
-  if (cells <= 0) fail('Escolha quantas células semear.');
-  if (cells > sus.live + 1) fail('Não há células vivas suficientes na suspensão.');
+  if (cells <= 0) fail('err.seedAmount');
+  if (cells > sus.live + 1) fail('err.notEnoughCells');
   incubatorWithSpace(s);
-  spend(s, { [`flask_${type}`]: 1, ...mediumNeeds(LINES[sus.line].medium, FLASKS[type].vol) });
+  const tmp = { abx: false, afx: false };
+  fillMedium(s, tmp, LINES[sus.line].medium, FLASKS[type].vol, { [`flask_${type}`]: 1 });
   const frac = cells / sus.live;
   const deadCarry = sus.dead * frac;
   sus.live -= cells;
   sus.dead -= deadCarry;
   const f = createFlask(s, sus.line, type, cells, deadCarry, sus.passage + 1, sus.markers);
-  maybeContaminate(s, f, 0.005);
+  f.abx = tmp.abx;
+  f.afx = tmp.afx;
+  f.contam = sus.contam ? { ...sus.contam } : null;
+  expose(s, f);
   if (sus.live < 1e4) s.suspension = null;
-  return `${flaskName(f)} semeado (P${f.passage}) 🧫`;
+  return m('ok.seeded', { flask: flaskName(f), p: f.passage });
 }
 
-export function freeze(s: GameState, n: number) {
-  const sus = s.suspension ?? fail('Não há suspensão celular.');
-  if (n < 1) fail('Escolha quantos criotubos congelar.');
-  if (n * CELLS_PER_VIAL > sus.live + 1) fail(`Cada criotubo leva 10⁶ células vivas.`);
+export function freeze(s: GameState, n: number): Msg {
+  const sus = s.suspension ?? fail('err.noSuspension');
+  if (n < 1) fail('err.vialAmount');
+  if (n * CELLS_PER_VIAL > sus.live + 1) fail('err.vialCells');
   // meio de congelamento: 90% SFB + 10% DMSO, 1 mL por criotubo
   spend(s, { cryovial: n, FBS: 0.9 * n, DMSO: 0.1 * n });
   const v = viability(sus);
   for (let i = 0; i < n; i++) {
-    s.vials.push({ id: uid(), line: sus.line, markers: [...sus.markers], passage: sus.passage + 1, viability: v, frozenAt: s.time });
+    s.vials.push({ id: uid(), line: sus.line, markers: [...sus.markers], passage: sus.passage + 1, viability: v, frozenAt: s.time, contam: sus.contam?.type ?? null });
   }
   const frac = (n * CELLS_PER_VIAL) / sus.live;
   sus.dead -= sus.dead * frac;
   sus.live -= n * CELLS_PER_VIAL;
   if (sus.live < 1e4) s.suspension = null;
+  bump(s, 'frozen', n);
   addXp(s, 2 * n);
-  return `${n} criotubo(s) no freezer ❄️`;
+  return m('ok.frozen', { n });
 }
 
-export function sellSuspension(s: GameState) {
-  const sus = s.suspension ?? fail('Não há suspensão celular.');
-  const total = sellCells(s, sus.line, sus.markers, sus.live / 1e6, viability(sus), sus.passage);
+export function sellSuspension(s: GameState): Msg {
+  const sus = s.suspension ?? fail('err.noSuspension');
+  if (sus.contam && sus.contam.type !== 'mycoplasma' && sus.contam.detected) fail('err.sellContaminated');
+  const total = sellCells(s, sus.line, sus.markers, sus.live / 1e6, viability(sus), sus.passage, 1, sus.contam?.type === 'mycoplasma');
   s.suspension = null;
-  return `Vendido por R$ ${Math.round(total).toLocaleString('pt-BR')} 💰`;
+  return total >= 0 ? m('ok.sold', { total: Math.round(total) }) : m('ok.soldFined');
 }
 
-export function discardSuspension(s: GameState) {
+export function discardSuspension(s: GameState): Msg {
   s.suspension = null;
-  return 'Suspensão descartada.';
+  return m('ok.suspensionDiscarded');
 }
 
-export function discardFlask(s: GameState, id: string) {
+export function discardFlask(s: GameState, id: string): Msg {
   const f = getFlask(s, id);
   s.flasks = s.flasks.filter((x) => x.id !== id);
   s.selectedFlaskId = s.flasks[0]?.id ?? null;
-  return `${flaskName(f)} foi para o lixo biológico (autoclave).`;
+  return m('ok.discarded', { flask: flaskName(f) });
 }
 
 // ---------------------------------------------------------------- freezer
 
-export function thaw(s: GameState, vialId: string, type: FlaskType) {
-  const vial = s.vials.find((v) => v.id === vialId) ?? fail('Criotubo não encontrado.');
+export function thaw(s: GameState, vialId: string, type: FlaskType): Msg {
+  const vial = s.vials.find((v) => v.id === vialId) ?? fail('err.noVial');
   incubatorWithSpace(s);
-  spend(s, { [`flask_${type}`]: 1, ...mediumNeeds(LINES[vial.line].medium, FLASKS[type].vol) });
+  const tmp = { abx: false, afx: false };
+  fillMedium(s, tmp, LINES[vial.line].medium, FLASKS[type].vol, { [`flask_${type}`]: 1 });
   const live = CELLS_PER_VIAL * vial.viability * 0.8;
   s.vials = s.vials.filter((v) => v.id !== vialId);
   const f = createFlask(s, vial.line, type, live, CELLS_PER_VIAL - live, vial.passage, vial.markers);
-  maybeContaminate(s, f, 0.005);
+  f.abx = tmp.abx;
+  f.afx = tmp.afx;
+  if (vial.contam) f.contam = { type: vial.contam, level: vial.contam === 'mycoplasma' ? 0.3 : 0.1, detected: false };
+  expose(s, f);
   addXp(s, 3);
-  return `${flaskName(f)} descongelado 🔥🧫`;
+  return m('ok.thawed', { flask: flaskName(f) });
 }
 
-export function sellVial(s: GameState, vialId: string) {
-  const vial = s.vials.find((v) => v.id === vialId) ?? fail('Criotubo não encontrado.');
-  const total = sellCells(s, vial.line, vial.markers, CELLS_PER_VIAL / 1e6, vial.viability, vial.passage, VIAL_PREMIUM);
+export function sellVial(s: GameState, vialId: string): Msg {
+  const vial = s.vials.find((v) => v.id === vialId) ?? fail('err.noVial');
+  const total = sellCells(s, vial.line, vial.markers, CELLS_PER_VIAL / 1e6, vial.viability, vial.passage, VIAL_PREMIUM, vial.contam === 'mycoplasma');
   s.vials = s.vials.filter((v) => v.id !== vialId);
-  return `Criotubo vendido por R$ ${Math.round(total).toLocaleString('pt-BR')} 💰`;
+  return total >= 0 ? m('ok.vialSold', { total: Math.round(total) }) : m('ok.soldFined');
 }
 
-// ---------------------------------------------------------------- loja e estufas
+// ---------------------------------------------------------------- contaminação
+
+export function treatContam(s: GameState, id: string): Msg {
+  const f = getFlask(s, id);
+  const c = f.contam;
+  if (!c || !c.detected || c.type === 'mycoplasma') fail('err.nothingToTreat');
+  const bact = c!.type === 'bacteria';
+  spend(s, { [bact ? 'abx_high' : 'afx_high']: 1 });
+  f.dead += f.live * (bact ? 0.15 : 0.2);
+  f.live *= bact ? 0.85 : 0.8;
+  bump(s, 'treatments');
+  const chance = bact ? 1 - c!.level * 1.2 : 1 - c!.level * 1.5;
+  if (Math.random() < chance) {
+    f.contam = null;
+    return m('ok.treated', { flask: flaskName(f) });
+  }
+  c!.level = Math.min(1, c!.level + 0.1);
+  log(s, 'log.treatFailed', { flask: flaskName(f) }, 'bad');
+  return m('ok.treatTried');
+}
+
+export function testMyco(s: GameState, id: string): Msg {
+  const f = getFlask(s, id);
+  spend(s, { myco_pcr: 1 });
+  bump(s, 'mycoTests');
+  if (isMyco(f) && f.contam!.level > 0.05) {
+    f.contam!.detected = true;
+    log(s, 'log.mycoPositive', { flask: flaskName(f) }, 'bad');
+    return m('ok.mycoPositive');
+  }
+  log(s, 'log.mycoNegative', { flask: flaskName(f) }, 'good');
+  return m('ok.mycoNegative');
+}
+
+export const MYCO_TREAT_H = 96;
+
+export function treatMyco(s: GameState, id: string): Msg {
+  const f = getFlask(s, id);
+  if (f.mycoTreat > 0) fail('err.alreadyTreating');
+  spend(s, { myco_treat: 1 });
+  f.mycoTreat = MYCO_TREAT_H;
+  bump(s, 'treatments');
+  return m('ok.mycoTreatStarted');
+}
+
+export function disinfect(s: GameState, incId: string): Msg {
+  const inc = s.incubators.find((i) => i.id === incId) ?? fail('err.noIncubator');
+  if (s.money < DISINFECT_COST) fail('err.noMoney');
+  s.money -= DISINFECT_COST;
+  inc.spores = 0;
+  return m('ok.disinfected', { inc: inc.name });
+}
+
+// ---------------------------------------------------------------- loja, estufas e ajustes
 
 export function shopPrice(s: GameState, itemId: string) {
   const item = SHOP.find((i) => i.id === itemId)!;
@@ -232,91 +334,131 @@ export function shopPrice(s: GameState, itemId: string) {
   return item.price;
 }
 
-export function buy(s: GameState, itemId: string) {
-  const item = SHOP.find((i) => i.id === itemId) ?? fail('Item inexistente.');
-  if (levelOf(s.xp) < item.level) fail(`Disponível no nível ${item.level}.`);
+export function buy(s: GameState, itemId: string): Msg {
+  const item = SHOP.find((i) => i.id === itemId) ?? fail('err.noItem');
+  if (levelOf(s.xp) < item.level) fail('err.levelLocked', { lv: item.level });
   const price = shopPrice(s, itemId);
-  if (s.money < price) fail('Dinheiro insuficiente. Venda células ou publique artigos!');
+  if (s.money < price) fail('err.noMoney');
   switch (item.special) {
     case 'co2':
-      if (s.co2Tank > 95) fail('O cilindro já está cheio.');
+      if (s.co2Tank > 95) fail('err.tankFull');
       s.co2Tank = 100;
       s.tankWarned = 0;
       break;
     case 'incubator':
-      s.incubators.push({ id: uid(), name: `Estufa ${s.incubators.length + 1}`, co2Set: 5, capacity: 6 });
+      s.incubators.push({ id: uid(), name: `#${s.incubators.length + 1}`, co2Set: 5, capacity: 6, spores: 0 });
       break;
     case 'fluo':
     case 'irradiator':
-      if (s.equipment[item.special]) fail('Você já tem esse equipamento.');
+      if (s.equipment[item.special]) fail('err.alreadyOwned');
       s.equipment[item.special] = true;
       break;
     case 'vial':
-      s.vials.push({ id: uid(), line: item.line!, markers: [], passage: 5, viability: 0.95, frozenAt: s.time });
+      s.vials.push({ id: uid(), line: item.line!, markers: [], passage: LINES[item.line!].startPassage, viability: 0.95, frozenAt: s.time, contam: null });
       break;
     default:
       s.inventory[item.inv!] = have(s, item.inv!) + item.qty!;
   }
   s.money -= price;
-  return `Comprado: ${item.name}`;
+  return m('ok.bought', { item: `@shop.${item.id}` });
 }
 
 export function setCO2(s: GameState, incId: string, value: number) {
-  const inc = s.incubators.find((i) => i.id === incId) ?? fail('Estufa não encontrada.');
+  const inc = s.incubators.find((i) => i.id === incId) ?? fail('err.noIncubator');
   inc.co2Set = Math.max(0, Math.min(10, value));
 }
 
 export function moveFlask(s: GameState, flaskId: string, incId: string) {
   const f = getFlask(s, flaskId);
-  const inc = s.incubators.find((i) => i.id === incId) ?? fail('Estufa não encontrada.');
-  if (s.flasks.filter((x) => x.incubatorId === inc.id).length >= inc.capacity) fail(`${inc.name} está cheia.`);
+  const inc = s.incubators.find((i) => i.id === incId) ?? fail('err.noIncubator');
+  if (s.flasks.filter((x) => x.incubatorId === inc.id).length >= inc.capacity) fail('err.incubatorFull');
   f.incubatorId = inc.id;
+}
+
+export function setSetting(s: GameState, key: keyof GameState['settings'], value: boolean) {
+  s.settings[key] = value;
+}
+
+// ---------------------------------------------------------------- recuperação e missões
+
+/** Pode pedir ajuda à orientadora: sem dinheiro e sem células saudáveis. */
+export function canAskHelp(s: GameState) {
+  const healthy = s.flasks.some((f) => f.live > 1e5 && !(f.contam && f.contam.detected && f.contam.type !== 'mycoplasma'));
+  return s.money < 80 && !healthy && s.vials.length === 0 && !s.suspension && s.time >= s.helpReadyAt;
+}
+
+export function askHelp(s: GameState): Msg {
+  if (!canAskHelp(s)) fail('err.helpUnavailable');
+  s.helpReadyAt = s.time + HELP_COOLDOWN_H;
+  // doação de outro laboratório: de procedência duvidosa (às vezes vem com micoplasma)
+  s.vials.push({ id: uid(), line: 'L929', markers: [], passage: 14, viability: 0.9, frozenAt: s.time, contam: Math.random() < 0.1 ? 'mycoplasma' : null });
+  const top = (k: string, min: number) => (s.inventory[k] = Math.max(have(s, k), min));
+  top('med_MEM', 250);
+  top('FBS', 25);
+  top('flask_T25', 3);
+  top('trypsin', 20);
+  top('PBS', 100);
+  log(s, 'log.help', undefined, 'good');
+  return m('ok.help');
+}
+
+export function claimQuest(s: GameState, id: string): Msg {
+  const q = QUESTS.find((x) => x.id === id) ?? fail('err.noItem');
+  if (s.quests[id]) fail('err.alreadyClaimed');
+  if (!q.done(s)) fail('err.questNotDone');
+  s.quests[id] = 'claimed';
+  s.money += q.reward;
+  addXp(s, 10);
+  return m('ok.questClaimed', { reward: q.reward });
 }
 
 // ---------------------------------------------------------------- transdução e experimentos
 
 export const TRANSDUCTION_HOURS = 72;
 
-export function startTransduction(s: GameState, flaskId: string, marker: MarkerId) {
+export function startTransduction(s: GameState, flaskId: string, marker: MarkerId): Msg {
   const f = getFlask(s, flaskId);
-  if (f.transduction) fail('Esse frasco já está em transdução.');
-  if (f.markers.includes(marker)) fail('Essas células já expressam esse marcador.');
-  if (f.contaminated) fail('Não dá pra transduzir células contaminadas.');
+  if (f.transduction) fail('err.alreadyTransducing');
+  if (f.markers.includes(marker)) fail('err.alreadyMarker');
+  if (f.contam?.detected) fail('err.contaminated');
   spend(s, { [`virus_${marker}`]: 1 });
-  f.dead += f.live * 0.4; // puromicina elimina as não transduzidas
+  f.dead += f.live * 0.4;
   f.live *= 0.6;
   f.transduction = { marker, hoursLeft: TRANSDUCTION_HOURS };
+  bump(s, 'transductions');
   addXp(s, 10);
-  return `Lentivírus ${MARKERS[marker].name} adicionado. Seleção com puromicina por 3 dias.`;
+  return m('ok.transduction', { marker: MARKERS[marker].name });
 }
 
 export function experimentQuality(f: Flask) {
-  if (f.contaminated) return 0;
+  const c = f.contam;
+  if (c && c.type !== 'mycoplasma') return 0;
   const L = LINES[f.line];
   const v = viability(f);
-  const c = confluence(f);
+  const cf = confluence(f);
   let q = 1;
   if (v < 0.9) q *= Math.max(0, Math.min(1, (v - 0.5) / 0.4));
-  if (c < 0.3) q *= 0.3;
-  else if (c < 0.5) q *= 0.75;
-  else if (c > 0.95) q *= 0.6;
+  if (cf < 0.3) q *= 0.3;
+  else if (cf < 0.5) q *= 0.75;
+  else if (cf > 0.95) q *= 0.6;
   if (f.medium !== L.medium) q *= 0.7;
   if (f.passage > 30) q *= 0.8;
   if (L.maxPassage && f.passage > L.maxPassage) q *= 0.5;
+  if (c?.type === 'mycoplasma') q *= 1 - 0.7 * c.level; // invisível, mas estraga os dados
   return q;
 }
 
 export const experimentHours = (r: Readout) => (r === 'MTT' ? 48 : 24);
 
-export function startExperiment(s: GameState, flaskId: string, agent: AgentId, readout: Readout) {
+export function startExperiment(s: GameState, flaskId: string, agent: AgentId, readout: Readout): Msg {
   const f = getFlask(s, flaskId);
-  if (f.transduction) fail('Espere a seleção da transdução terminar.');
+  if (f.transduction) fail('err.waitTransduction');
   const A = AGENTS[agent];
-  if (levelOf(s.xp) < A.level) fail(`${A.name} libera no nível ${A.level}.`);
-  if (A.needsIrradiator && !s.equipment.irradiator) fail('Precisa de um irradiador (loja → equipamentos).');
+  if (levelOf(s.xp) < A.level) fail('err.levelLocked', { lv: A.level });
+  if (A.needsIrradiator && !s.equipment.irradiator) fail('err.needIrradiator');
   if (readout !== 'MTT') {
-    if (!s.equipment.fluo) fail('Precisa do microscópio de fluorescência.');
-    if (!f.markers.includes(readout)) fail(`Essas células não expressam ${MARKERS[readout].name}.`);
+    if (!s.equipment.fluo) fail('err.needFluo');
+    if (!f.markers.includes(readout)) fail('err.noMarker');
   }
   const needs: Record<string, number> = {};
   if (!A.needsIrradiator) needs[`drug_${agent}`] = 1;
@@ -336,6 +478,7 @@ export function startExperiment(s: GameState, flaskId: string, agent: AgentId, r
   });
   s.flasks = s.flasks.filter((x) => x.id !== flaskId);
   s.selectedFlaskId = s.flasks[0]?.id ?? null;
+  bump(s, 'experiments');
   addXp(s, 8);
-  return `Experimento iniciado! Resultado em ${experimentHours(readout)} h. 🔬`;
+  return m('ok.experiment', { h: experimentHours(readout) });
 }

@@ -1,11 +1,12 @@
 import { useSyncExternalStore } from 'react';
+import { tm } from '../i18n';
 import { GameError } from './actions';
 import { OFFLINE_CAP_H } from './data';
 import { log } from './econ';
-import { SAVE_VERSION, newGame } from './newgame';
+import { migrate, newGame } from './newgame';
 import { lastProfile, localBackend } from './save';
 import { advance } from './sim';
-import type { GameState } from './types';
+import type { GameState, Msg } from './types';
 
 type Listener = () => void;
 
@@ -30,21 +31,21 @@ function subscribe(l: Listener) {
 
 export interface Toast {
   id: number;
-  msg: string;
+  msg: Msg;
   kind: 'info' | 'good' | 'warn' | 'bad';
 }
 let toasts: Toast[] = [];
 let toastId = 0;
 const toastListeners = new Set<Listener>();
 
-export function toast(msg: string, kind: Toast['kind'] = 'info') {
-  const t = { id: ++toastId, msg, kind };
-  toasts = [...toasts.slice(-3), t];
+export function toast(msg: Msg, kind: Toast['kind'] = 'info') {
+  const item = { id: ++toastId, msg, kind };
+  toasts = [...toasts.slice(-3), item];
   toastListeners.forEach((l) => l());
   setTimeout(() => {
-    toasts = toasts.filter((x) => x.id !== t.id);
+    toasts = toasts.filter((x) => x.id !== item.id);
     toastListeners.forEach((l) => l());
-  }, kind === 'bad' ? 5000 : 3500);
+  }, kind === 'bad' ? 5500 : 3800);
 }
 export function useToasts() {
   return useSyncExternalStore(
@@ -62,7 +63,7 @@ function toastNewLogs() {
   if (!state) return;
   const fresh = state.log.filter((e) => e.seq > lastSeenSeq && e.kind !== 'info').reverse();
   lastSeenSeq = state.logSeq;
-  fresh.slice(-3).forEach((e) => toast(e.msg, e.kind));
+  fresh.slice(-3).forEach((e) => toast(e, e.kind));
 }
 
 // ---------------------------------------------------------------- estado
@@ -79,7 +80,7 @@ function persist() {
 }
 
 /** Executa uma ação do jogo numa cópia do estado. Erros de jogo viram toast. */
-export function act(fn: (s: GameState) => string | void, quiet = false): boolean {
+export function act(fn: (s: GameState) => Msg | void, quiet = false): boolean {
   if (!state) return false;
   const draft = structuredClone(state);
   try {
@@ -92,7 +93,7 @@ export function act(fn: (s: GameState) => string | void, quiet = false): boolean
     return true;
   } catch (e) {
     if (e instanceof GameError) {
-      toast(e.message, 'bad');
+      toast(e.msg, 'bad');
       return false;
     }
     throw e;
@@ -115,11 +116,11 @@ function tick() {
 export function login(profile: string) {
   const name = profile.trim().slice(0, 24);
   if (!name) return;
-  let s = backend.load(name);
-  if (!s || s.version !== SAVE_VERSION) s = newGame(name);
+  let s = migrate(backend.load(name));
+  if (!s) s = newGame(name);
   else {
     const away = Math.min(((Date.now() - s.lastReal) / 60000) * s.speed, OFFLINE_CAP_H);
-    if (away > 0.5) log(s, `⏳ Enquanto você esteve fora, passaram ${away.toFixed(1).replace('.', ',')} h no laboratório.`, 'info');
+    if (away > 0.5) log(s, 'log.away', { h: Math.round(away * 10) / 10 });
   }
   state = s;
   lastSeenSeq = s.logSeq;
@@ -152,6 +153,9 @@ export function listProfiles() {
 export function exportSave() {
   return state ? JSON.stringify(state, null, 2) : '';
 }
+
+/** Para textos fora do React (ex.: confirm). */
+export const msgText = tm;
 
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {

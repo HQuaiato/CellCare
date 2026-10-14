@@ -3,43 +3,41 @@ import { have, startTransduction } from '../game/actions';
 import { MARKER_ORDER, MARKERS, levelOf } from '../game/data';
 import { act, useGame } from '../game/store';
 import type { Flask } from '../game/types';
+import { t } from '../i18n';
 
 export function TransductionModal({ flask, onClose }: { flask: Flask; onClose: () => void }) {
   const s = useGame();
   const lv = levelOf(s.xp);
-  const options = MARKER_ORDER.filter((m) => MARKERS[m].level <= lv);
+  const options = MARKER_ORDER.filter((mk) => MARKERS[mk].level <= lv);
 
   return (
-    <Modal title="🦠 Transdução lentiviral" onClose={onClose}>
-      <p className="muted">
-        Infecte as células com o lentivírus e selecione com puromicina por 3 dias. Cerca de 40% morrem na seleção, mas
-        todas as células filhas (frascos e criotubos) herdam o marcador e valem mais.
-      </p>
-      {options.length === 0 && <p className="hint">🔒 As transduções liberam a partir do nível 2.</p>}
+    <Modal title={`🧬 ${t('trans.title')}`} onClose={onClose}>
+      <p className="muted small">{t('trans.intro')}</p>
+      {options.length === 0 && <p className="hint">🔒 {t('trans.locked')}</p>}
       <div className="pick">
-        {options.map((m) => {
-          const owned = have(s, `virus_${m}`);
-          const already = flask.markers.includes(m);
+        {options.map((mk) => {
+          const owned = have(s, `virus_${mk}`);
+          const already = flask.markers.includes(mk);
           return (
             <button
-              key={m}
+              key={mk}
               disabled={owned < 1 || already || !!flask.transduction}
               onClick={() => {
-                if (act((st) => startTransduction(st, flask.id, m))) onClose();
+                if (act((st) => startTransduction(st, flask.id, mk))) onClose();
               }}
             >
-              <b style={{ color: MARKERS[m].color }}>{MARKERS[m].name}</b>
+              <b style={{ color: MARKERS[mk].color }}>{MARKERS[mk].name}</b>
               <small>
-                {MARKERS[m].desc}
+                {t(`marker.${mk}`)}
                 <br />
-                {already ? '✔ já expressa' : `${owned} alíquota(s) · +${Math.round(MARKERS[m].bonus * 100)}% valor`}
+                {already ? `✔ ${t('trans.already')}` : t('trans.owned', { n: owned, b: Math.round(MARKERS[mk].bonus * 100) })}
               </small>
             </button>
           );
         })}
       </div>
-      {flask.transduction && <p className="hint">Este frasco já está em seleção.</p>}
-      <p className="hint">Compre lentivírus na Loja → Vírus.</p>
+      {flask.transduction && <p className="hint">{t('trans.busy')}</p>}
+      <p className="hint">{t('trans.buyHint')}</p>
     </Modal>
   );
 }

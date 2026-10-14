@@ -1,4 +1,4 @@
-import { FLASKS, LINES, MEDIA, SUSPENSION_MAX_DENSITY } from './data';
+import { CONTAM, FLASKS, LINES, MEDIA, STIPEND, SUSPENSION_MAX_DENSITY, levelOf } from './data';
 import { log } from './econ';
 import { resolveExperiment } from './research';
 import type { Flask, GameState, MediumId, Mood } from './types';
@@ -17,7 +17,7 @@ export const viability = (f: { live: number; dead: number }) =>
 
 export function co2Of(s: GameState, f: Flask) {
   const inc = s.incubators.find((i) => i.id === f.incubatorId);
-  if (!inc || s.co2Tank <= 0) return 0.04; // ar ambiente
+  if (!inc || s.co2Tank <= 0) return 0.04;
   return inc.co2Set;
 }
 
@@ -26,7 +26,7 @@ export function co2Of(s: GameState, f: Flask) {
  * O ácido lático consome bicarbonato, então o meio acidifica conforme as células trabalham.
  */
 export function eqPH(medium: MediumId, lactate: number, co2: number) {
-  const pco2 = Math.max(co2, 0.04) * 7.13; // mmHg (atm úmida a 37 °C)
+  const pco2 = Math.max(co2, 0.04) * 7.13;
   const hco3 = Math.max(0.3, MEDIA[medium].hco3 - 1.2 * lactate);
   return clamp(6.1 + Math.log10(hco3 / (0.0307 * pco2)), 6.0, 8.6);
 }
@@ -37,10 +37,13 @@ export function phFactor(pH: number) {
   return Math.exp(-((d / 0.25) ** 2));
 }
 
+export const isMyco = (f: { contam: Flask['contam'] }) => f.contam?.type === 'mycoplasma';
+
 function stepFlask(s: GameState, f: Flask, dt: number) {
   const L = LINES[f.line];
   const vol = FLASKS[f.type].vol;
   const K = capacity(f);
+  const c = f.contam;
 
   f.pH += (eqPH(f.medium, f.lactate, co2Of(s, f)) - f.pH) * Math.min(1, dt / 1.5);
   const conf = f.live / K;
@@ -50,9 +53,12 @@ function stepFlask(s: GameState, f: Flask, dt: number) {
   g *= phFactor(f.pH);
   g *= 1 / (1 + (f.lactate / 25) ** 2);
   if (f.medium !== L.medium) g *= 0.55;
-  g *= Math.max(0, 1 - conf ** 3); // inibição por contato: quase exponencial até ficar apertado
+  g *= Math.max(0, 1 - conf ** 3);
   if (f.transduction) g *= 0.4;
+  if (f.mycoTreat > 0) g *= 0.6;
+  if (f.afx) g *= 0.93; // anfotericina é um pouco tóxica
   if (L.maxPassage && f.passage > L.maxPassage) g *= 0.08;
+  if (c?.type === 'mycoplasma') g *= 1 - 0.35 * c.level;
 
   let d = 0.002;
   if (f.glucose < 0.5) d += (0.04 * (0.5 - f.glucose)) / 0.5;
@@ -61,7 +67,8 @@ function stepFlask(s: GameState, f: Flask, dt: number) {
   if (f.pH < 7.0) d += (0.015 * (7.0 - f.pH)) / 0.1;
   if (f.pH > 7.8) d += (0.012 * (f.pH - 7.8)) / 0.1;
   if (conf > 0.95) d += (0.02 * (conf - 0.95)) / 0.05;
-  if (f.contaminated) d += 0.08;
+  if (c?.type === 'bacteria') d += 0.15 * c.level;
+  if (c?.type === 'fungus') d += 0.06 * c.level;
   d *= L.sens;
 
   const born = f.live * g * dt;
@@ -69,23 +76,67 @@ function stepFlask(s: GameState, f: Flask, dt: number) {
   f.live = Math.max(0, f.live + born - died);
   f.dead = f.dead * (1 - 0.01 * dt) + died;
 
-  const uptake = L.glcRate * (f.live / 1e6) * dt * (f.glucose / (f.glucose + 1)); // µmol
+  const uptake = L.glcRate * (f.live / 1e6) * dt * (f.glucose / (f.glucose + 1));
   f.glucose = Math.max(0, f.glucose - uptake / vol);
   f.lactate += (1.7 * uptake) / vol;
-  f.ammonia += (0.05 * (f.live / 1e6) * dt) / vol + 0.004 * dt; // + decomposição da glutamina
-  if (f.contaminated) {
-    f.lactate += 0.8 * dt;
-    f.glucose = Math.max(0, f.glucose - 0.6 * dt);
+  f.ammonia += (0.05 * (f.live / 1e6) * dt) / vol + 0.004 * dt;
+
+  if (c) {
+    const def = CONTAM[c.type];
+    const prot = (c.type === 'bacteria' && f.abx) || (c.type === 'fungus' && f.afx);
+    c.level = Math.min(1, c.level + (prot ? def.growthProtected : def.growth) * dt);
+    if (c.type === 'bacteria') {
+      // bactérias consomem glicose e acidificam: meio turvo e amarelo
+      f.glucose = Math.max(0, f.glucose - 1.0 * c.level * dt);
+      f.lactate += 1.2 * c.level * dt;
+    } else if (c.type === 'fungus') {
+      f.glucose = Math.max(0, f.glucose - 0.4 * c.level * dt);
+      f.ammonia += 0.05 * c.level * dt;
+      const inc = s.incubators.find((i) => i.id === f.incubatorId);
+      if (inc) inc.spores = Math.min(1, inc.spores + 0.02 * c.level * dt);
+    }
+    if (!c.detected && c.type !== 'mycoplasma' && c.level >= 0.15) {
+      c.detected = true;
+      log(s, 'log.contamFound', { flask: flaskName(f), type: `@contam.${c.type}` }, 'bad');
+    }
+  }
+
+  if (f.mycoTreat > 0) {
+    f.mycoTreat -= dt;
+    if (f.mycoTreat <= 0) {
+      f.mycoTreat = 0;
+      if (isMyco(f) && Math.random() < 0.9) {
+        f.contam = null;
+        log(s, 'log.mycoCured', { flask: flaskName(f) }, 'good');
+      } else if (isMyco(f)) {
+        log(s, 'log.mycoPersists', { flask: flaskName(f) }, 'warn');
+      } else {
+        log(s, 'log.mycoTreatDone', { flask: flaskName(f) }, 'info');
+      }
+    }
   }
 
   if (f.transduction) {
     f.transduction.hoursLeft -= dt;
     if (f.transduction.hoursLeft <= 0) {
-      const m = f.transduction.marker;
-      if (!f.markers.includes(m)) f.markers.push(m);
+      const mk = f.transduction.marker;
+      if (!f.markers.includes(mk)) f.markers.push(mk);
       f.transduction = null;
-      log(s, `🦠 ${flaskName(f)} terminou a seleção: agora expressa ${m}! Valor de venda aumentou.`, 'good');
+      log(s, 'log.transductionDone', { flask: flaskName(f), marker: mk }, 'good');
     }
+  }
+}
+
+/** Esporos no ar contaminam vizinhos de estufa. */
+function sporeSpread(s: GameState, dt: number) {
+  if (levelOf(s.xp) < CONTAM.fungus.level) return;
+  for (const inc of s.incubators) {
+    if (inc.spores <= 0) continue;
+    for (const f of s.flasks) {
+      if (f.incubatorId !== inc.id || f.contam) continue;
+      if (Math.random() < 0.002 * inc.spores * dt * (f.afx ? 0.2 : 1)) f.contam = { type: 'fungus', level: 0.02, detected: false };
+    }
+    inc.spores = Math.max(0, inc.spores - 0.01 * dt);
   }
 }
 
@@ -96,7 +147,9 @@ export function flaskName(f: Flask) {
 export function flaskMood(f: Flask): Mood {
   const L = LINES[f.line];
   if (f.live < 5e3) return 'dead';
-  if (f.contaminated) return 'contaminated';
+  const c = f.contam;
+  if (c?.detected && c.type === 'bacteria') return 'bacteria';
+  if (c?.detected && c.type === 'fungus') return 'fungus';
   const v = viability(f);
   if (v < 0.5) return 'dying';
   if (f.glucose < 1) return 'hungry';
@@ -104,6 +157,8 @@ export function flaskMood(f: Flask): Mood {
   if (f.pH > 7.8) return 'alkaline';
   if (f.lactate > 20 || f.ammonia > 3) return 'toxic';
   if (confluence(f) > 0.9) return 'crowded';
+  if (f.mycoTreat > 0) return 'treating';
+  if (c?.detected && c.type === 'mycoplasma') return 'mycoplasma';
   if (f.transduction) return 'transducing';
   if (L.maxPassage && f.passage > L.maxPassage) return 'senescent';
   if (v < 0.8) return 'sick';
@@ -111,23 +166,7 @@ export function flaskMood(f: Flask): Mood {
   return 'happy';
 }
 
-export const MOOD_TEXT: Record<Mood, string> = {
-  happy: 'Tudo ótimo por aqui! 💕',
-  lonely: 'Poucas células... dá um tempo pra gente crescer.',
-  hungry: 'Estou com fome! Acabou a glicose, troca o meio!',
-  acid: 'Meio amarelo, ácido demais! Troca o meio!',
-  alkaline: 'Meio roxo! Confere o CO₂ da estufa.',
-  toxic: 'Muito lactato e amônia acumulados... troca o meio?',
-  crowded: 'Apertada! Hora de tripsinizar e repicar.',
-  sick: 'Não estou muito bem... muitas células mortas.',
-  dying: 'Socorro! Mais da metade morreu...',
-  dead: 'O frasco morreu. Descarte e recomece. 🥀',
-  contaminated: 'Contaminação! Meio turvo. Descarte já!',
-  transducing: 'Em transdução e seleção com puromicina...',
-  senescent: 'Senescência... passei do limite de Hayflick.',
-};
-
-const BAD_MOODS: Mood[] = ['hungry', 'acid', 'alkaline', 'toxic', 'crowded', 'dying', 'dead', 'contaminated'];
+const BAD_MOODS: Mood[] = ['hungry', 'acid', 'alkaline', 'toxic', 'crowded', 'dying', 'dead'];
 
 export function advance(s: GameState, hours: number) {
   let remaining = hours;
@@ -137,6 +176,7 @@ export function advance(s: GameState, hours: number) {
     s.time += dt;
 
     for (const f of s.flasks) stepFlask(s, f, dt);
+    sporeSpread(s, dt);
 
     if (s.suspension) {
       const lost = s.suspension.live * 0.03 * dt;
@@ -148,15 +188,23 @@ export function advance(s: GameState, hours: number) {
       s.co2Tank = Math.max(0, s.co2Tank - 0.35 * s.incubators.length * dt);
       if (s.co2Tank < 20 && s.tankWarned < 1) {
         s.tankWarned = 1;
-        log(s, '⚠️ Cilindro de CO₂ abaixo de 20%. Compre uma recarga na loja.', 'warn');
+        log(s, 'log.co2Low', undefined, 'warn');
       }
       if (s.co2Tank === 0) {
         s.tankWarned = 2;
-        log(s, '🚨 Acabou o CO₂! O pH dos meios vai subir (ficar roxo).', 'bad');
+        log(s, 'log.co2Empty', undefined, 'bad');
       }
     }
 
     for (const k of Object.keys(s.demand)) s.demand[k] = Math.min(1, s.demand[k] + (0.15 / 24) * dt);
+
+    const day = Math.floor(s.time / 24);
+    if (day > s.lastStipendDay) {
+      s.lastStipendDay = day;
+      const amount = STIPEND(levelOf(s.xp));
+      s.money += amount;
+      log(s, 'log.stipend', { amount }, 'info');
+    }
 
     const ready = s.experiments.filter((e) => e.readyAt <= s.time);
     if (ready.length) {
@@ -166,10 +214,10 @@ export function advance(s: GameState, hours: number) {
   }
 
   for (const f of s.flasks) {
-    const m = flaskMood(f);
-    if (m !== f.lastMood && BAD_MOODS.includes(m)) {
-      log(s, `${m === 'dead' || m === 'contaminated' ? '🚨' : '⚠️'} ${flaskName(f)}: ${MOOD_TEXT[m]}`, m === 'dead' || m === 'contaminated' || m === 'dying' ? 'bad' : 'warn');
+    const md = flaskMood(f);
+    if (md !== f.lastMood && BAD_MOODS.includes(md)) {
+      log(s, 'log.moodAlert', { flask: flaskName(f), mood: `@mood.${md}` }, md === 'dead' || md === 'dying' ? 'bad' : 'warn');
     }
-    f.lastMood = m;
+    f.lastMood = md;
   }
 }

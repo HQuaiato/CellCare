@@ -3,24 +3,23 @@ import { log } from './econ';
 import { eqPH } from './sim';
 import type { GameState } from './types';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export function newGame(player: string): GameState {
   const s: GameState = {
     version: SAVE_VERSION,
     player,
-    money: 300,
+    money: 250,
     xp: 0,
-    time: 8, // começa às 8h do dia 1
+    time: 8,
     co2Tank: 100,
     speed: 1,
-    incubators: [{ id: 'inc1', name: 'Estufa 1', co2Set: 5, capacity: 4 }],
+    incubators: [{ id: 'inc1', name: '1', co2Set: 5, capacity: 4, spores: 0 }],
     flasks: [],
     vials: [],
     suspension: null,
     experiments: [],
     replicates: {},
-    results: {},
     papers: [],
     demand: {},
     inventory: {
@@ -34,8 +33,14 @@ export function newGame(player: string): GameState {
       flask_T75: 5,
       MTT: 3,
       drug_cisplatin: 3,
+      penstrep: 10,
     },
     equipment: { irradiator: false, fluo: false },
+    settings: { penstrep: false, ampho: false },
+    stats: {},
+    quests: {},
+    lastStipendDay: 0,
+    helpReadyAt: 0,
     log: [],
     logSeq: 0,
     selectedFlaskId: 'f1',
@@ -58,13 +63,53 @@ export function newGame(player: string): GameState {
     ammonia: 0,
     pH: eqPH('DMEM', 0, 5),
     markers: [],
-    contaminated: false,
+    contam: null,
+    abx: false,
+    afx: false,
+    mycoTreat: 0,
     transduction: null,
     seed: 12345,
     bornAt: 8,
     lastMood: 'happy',
   });
-  log(s, '🧑‍🔬 Bem-vinda(o) ao CellCare! Sua orientadora deixou um frasco de HeLa na estufa. Cuide bem dele.', 'info');
-  log(s, '💡 Dica: confluência acima de 80–90%? Tripsinize e repique. Meio amarelo? Troque o meio.', 'info');
+  log(s, 'log.welcome');
+  log(s, 'log.tip');
   return s;
+}
+
+/** Atualiza saves antigos para o formato atual sem perder o progresso. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function migrate(raw: any): GameState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  if (raw.version === SAVE_VERSION) return raw as GameState;
+  if (raw.version !== 1) return null;
+  const s = raw;
+  s.version = SAVE_VERSION;
+  s.settings = { penstrep: false, ampho: false };
+  s.stats = {};
+  s.quests = {};
+  s.lastStipendDay = Math.floor(s.time / 24);
+  s.helpReadyAt = 0;
+  delete s.results;
+  for (const inc of s.incubators) {
+    inc.spores = 0;
+    inc.name = String(inc.name).replace(/\D+/g, '') || '1';
+  }
+  for (const f of s.flasks) {
+    f.contam = f.contaminated ? { type: 'bacteria', level: 0.5, detected: true } : null;
+    delete f.contaminated;
+    f.abx = false;
+    f.afx = false;
+    f.mycoTreat = 0;
+  }
+  for (const v of s.vials) v.contam = null;
+  if (s.suspension) s.suspension.contam = null;
+  s.papers = (s.papers ?? []).map((p: { key: string; impact: number; reward: number; at: number; id: string }) => {
+    const [line, agent, readout] = p.key.split('|');
+    return { ...p, line, agent, readout, markers: [], journal: [1.1, 0.8, 0.5, 0].findIndex((min) => p.impact >= min) };
+  });
+  s.log = [];
+  s.logSeq = 0;
+  log(s, 'log.migrated');
+  return s as GameState;
 }

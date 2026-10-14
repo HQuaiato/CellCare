@@ -31,7 +31,14 @@ export function FlaskSvg({ flask, size = 96 }: { flask: Flask; size?: number }) 
       <path d="M90,30 L104,26 L104,46 L90,42Z" fill="#eef6ff" stroke="#9fb4cc" strokeWidth={2.5} />
       <rect x={104} y={22} width={12} height={28} rx={3} fill={flask.markers.length ? '#7c5cff' : '#3b82f6'} />
       <rect x={6} y={46} width={82} height={24} rx={6} fill={color} />
-      {flask.contaminated && <rect x={6} y={30} width={82} height={40} rx={6} fill="#f5f0d0" opacity={0.65} />}
+      {flask.contam?.type === 'bacteria' && flask.contam.detected && <rect x={6} y={46} width={82} height={24} rx={6} fill="#f5f0d0" opacity={0.65} />}
+      {flask.contam?.type === 'fungus' && flask.contam.detected && (
+        <g fill="#e7ead8" stroke="#9aa77a">
+          <circle cx={30} cy={52} r={5} />
+          <circle cx={58} cy={56} r={4} />
+          <circle cx={72} cy={50} r={3} />
+        </g>
+      )}
       <rect x={10} y={18} width={30} height={6} rx={3} fill="#fff" opacity={0.7} />
       <text x={47} y={38} fontSize={12} textAnchor="middle" fill="#5b6b80" fontWeight={700}>
         {flask.type}

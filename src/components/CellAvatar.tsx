@@ -75,7 +75,8 @@ function Eyes({ mood }: { mood: Mood }) {
           <path d={`M${R + 9},${Y - 7}l-14,7l14,7`} />
         </g>
       );
-    case 'contaminated':
+    case 'bacteria':
+    case 'fungus':
     case 'alkaline':
       return (
         <g {...stroke} strokeWidth={3}>
@@ -93,7 +94,7 @@ function Eyes({ mood }: { mood: Mood }) {
         </g>
       );
     default: {
-      const lid = mood === 'sick' || mood === 'toxic' || mood === 'acid' || mood === 'senescent';
+      const lid = mood === 'sick' || mood === 'mycoplasma' || mood === 'treating' || mood === 'toxic' || mood === 'acid' || mood === 'senescent';
       const look = mood === 'lonely' ? 4 : 0;
       return (
         <g>
@@ -126,7 +127,8 @@ function Mouth({ mood }: { mood: Mood }) {
       );
     case 'acid':
     case 'toxic':
-    case 'contaminated':
+    case 'bacteria':
+    case 'fungus':
       return <path d="M104,170 q4,-6 8,0 t8,0 t8,0 t8,0" {...s} />;
     case 'alkaline':
       return <ellipse cx={120} cy={170} rx={6} ry={7} fill="#2b2140" />;
@@ -147,7 +149,7 @@ export function CellAvatar({ flask, time }: { flask: Flask; time: number }) {
   const r = rng(flask.seed + 7);
   const has = (m: string) => flask.markers.includes(m as never);
 
-  const grey = mood === 'dead' || mood === 'dying' || mood === 'senescent';
+  const grey = mood === 'dead' || mood === 'dying' || mood === 'senescent' || mood === 'fungus';
   const sat = grey ? 12 : 70;
   const tint = mood === 'acid' || mood === 'toxic' ? 75 : mood === 'alkaline' ? 285 : L.hue;
   const fill = `hsl(${mood === 'acid' || mood === 'toxic' || mood === 'alkaline' ? (L.hue + tint) / 2 : L.hue} ${sat}% 88%)`;
@@ -169,7 +171,9 @@ export function CellAvatar({ flask, time }: { flask: Flask; time: number }) {
   const mito = Array.from({ length: 4 }, () => [60 + r() * 120, 150 + r() * 40, r() * 180]);
   const puncta = Array.from({ length: 9 }, () => [55 + r() * 130, 110 + r() * 85]);
   const foci = Array.from({ length: 4 }, () => [104 + r() * 32, 72 + r() * 26]);
-  const bacteria = Array.from({ length: 7 }, () => [20 + r() * 200, 20 + r() * 200, r() * 180]);
+  const bacteria = Array.from({ length: 9 }, () => [20 + r() * 200, 20 + r() * 200, r() * 180]);
+  const hyphae = Array.from({ length: 5 }, () => [20 + r() * 200, 30 + r() * 190, r() * 6.28]);
+  const myco = Array.from({ length: 14 }, () => r() * 6.28);
 
   const crowdScale = mood === 'crowded' ? 'scale(0.88 1.05)' : '';
 
@@ -205,10 +209,20 @@ export function CellAvatar({ flask, time }: { flask: Flask; time: number }) {
         )}
         <Mouth mood={mood} />
       </g>
-      {mood === 'contaminated' &&
+      {mood === 'bacteria' &&
         bacteria.map(([x, y, a], i) => (
           <rect key={i} className="bacterium" x={x} y={y} width={14} height={6} rx={3} fill="#a3a33a" transform={`rotate(${a} ${x} ${y})`} />
         ))}
+      {mood === 'fungus' &&
+        hyphae.map(([x, y, a], i) => (
+          <g key={i} className="hypha" stroke="#7c8b5a" strokeWidth={2.5} fill="none" strokeLinecap="round">
+            <path d={`M${x},${y} q${18 * Math.cos(a)},${18 * Math.sin(a)} ${34 * Math.cos(a + 0.6)},${34 * Math.sin(a + 0.6)}`} />
+            <path d={`M${x},${y} l${14 * Math.cos(a - 1.2)},${14 * Math.sin(a - 1.2)}`} />
+            <circle cx={x + 34 * Math.cos(a + 0.6)} cy={y + 34 * Math.sin(a + 0.6)} r={4} fill="#a3b17a" stroke="none" />
+          </g>
+        ))}
+      {(mood === 'mycoplasma' || mood === 'treating') &&
+        myco.map((a, i) => <circle key={i} cx={120 + 94 * Math.cos(a)} cy={122 + 86 * Math.sin(a)} r={2.4} fill="#8b5cf6" opacity={0.8} />)}
       {mood === 'hungry' && <text x={186} y={58} fontSize={26}>🍽️</text>}
       {mood === 'crowded' && <text x={186} y={58} fontSize={26}>😵</text>}
       {mood === 'happy' && <text className="float" x={190} y={56} fontSize={22}>💕</text>}

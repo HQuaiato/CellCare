@@ -3,6 +3,7 @@ import { HUD } from './components/HUD';
 import { Login } from './components/Login';
 import { Toasts } from './components/ui';
 import { act, useGameMaybe } from './game/store';
+import { t, usePrefs } from './i18n';
 import { SuspensionModal } from './modals/SuspensionModal';
 import { CultureTab } from './tabs/CultureTab';
 import { FreezerTab } from './tabs/FreezerTab';
@@ -13,13 +14,13 @@ import { ShopTab } from './tabs/ShopTab';
 
 type Tab = 'culture' | 'incubators' | 'freezer' | 'shop' | 'research' | 'lab';
 
-const TABS: { id: Tab; icon: string; label: string }[] = [
-  { id: 'culture', icon: '🧫', label: 'Cultura' },
-  { id: 'incubators', icon: '🌡️', label: 'Estufas' },
-  { id: 'freezer', icon: '❄️', label: 'Freezer' },
-  { id: 'shop', icon: '🛒', label: 'Loja' },
-  { id: 'research', icon: '🔬', label: 'Pesquisa' },
-  { id: 'lab', icon: '📓', label: 'Lab' },
+const TABS: { id: Tab; icon: string }[] = [
+  { id: 'culture', icon: '🧫' },
+  { id: 'incubators', icon: '🌡️' },
+  { id: 'freezer', icon: '❄️' },
+  { id: 'shop', icon: '🛒' },
+  { id: 'research', icon: '🔬' },
+  { id: 'lab', icon: '📓' },
 ];
 
 function Game() {
@@ -30,31 +31,33 @@ function Game() {
   return (
     <div className="app">
       <HUD />
-      <main>
-        {tab === 'culture' && <CultureTab goTo={setTab} />}
-        {tab === 'incubators' && (
-          <IncubatorsTab
-            openFlask={(id) => {
-              act((st) => void (st.selectedFlaskId = id), true);
-              setTab('culture');
-            }}
-          />
-        )}
-        {tab === 'freezer' && <FreezerTab onThaw={() => setTab('culture')} />}
-        {tab === 'shop' && <ShopTab />}
-        {tab === 'research' && <ResearchTab />}
-        {tab === 'lab' && <LabTab />}
-      </main>
-      <nav className="tabs">
-        {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)}>
-            <span>{t.icon}</span>
-            {t.label}
-            {t.id === 'research' && running > 0 && <i className="badge">{running}</i>}
-            {t.id === 'freezer' && s.vials.length > 0 && <i className="badge muted">{s.vials.length}</i>}
-          </button>
-        ))}
-      </nav>
+      <div className="body">
+        <nav className="tabs">
+          {TABS.map((tb) => (
+            <button key={tb.id} className={tab === tb.id ? 'on' : ''} onClick={() => setTab(tb.id)}>
+              <span>{tb.icon}</span>
+              {t(`tab.${tb.id}`)}
+              {tb.id === 'research' && running > 0 && <i className="badge">{running}</i>}
+              {tb.id === 'freezer' && s.vials.length > 0 && <i className="badge muted">{s.vials.length}</i>}
+            </button>
+          ))}
+        </nav>
+        <main>
+          {tab === 'culture' && <CultureTab goTo={setTab} />}
+          {tab === 'incubators' && (
+            <IncubatorsTab
+              openFlask={(id) => {
+                act((st) => void (st.selectedFlaskId = id), true);
+                setTab('culture');
+              }}
+            />
+          )}
+          {tab === 'freezer' && <FreezerTab onThaw={() => setTab('culture')} />}
+          {tab === 'shop' && <ShopTab />}
+          {tab === 'research' && <ResearchTab />}
+          {tab === 'lab' && <LabTab />}
+        </main>
+      </div>
       {s.suspension && <SuspensionModal />}
       <Toasts />
     </div>
@@ -62,6 +65,7 @@ function Game() {
 }
 
 export default function App() {
+  usePrefs(); // re-renderiza tudo ao trocar idioma ou tema
   const s = useGameMaybe();
   return s ? <Game /> : <Login />;
 }

@@ -1,5 +1,21 @@
-export type MediumId = 'DMEM' | 'RPMI' | 'MCCOY' | 'F12K' | 'MEM' | 'MTESR';
-export type LineId = 'HeLa' | 'HEK293T' | 'U2OS' | 'MCF7' | 'A549' | 'Jurkat' | 'HDF' | 'iPSC';
+export type MediumId = 'DMEM' | 'RPMI' | 'MCCOY' | 'F12K' | 'MEM' | 'MTESR' | 'EGM2';
+export type LineId =
+  | 'L929'
+  | 'HeLa'
+  | 'HEK293T'
+  | 'A549'
+  | 'MCF7'
+  | 'U2OS'
+  | 'MDA231'
+  | 'A375'
+  | 'U87'
+  | 'A172'
+  | 'Jurkat'
+  | 'MRC5'
+  | 'IMR90'
+  | 'HDF'
+  | 'HUVEC'
+  | 'iPSC';
 export type MarkerId = 'H2B' | 'FUCCI' | '53BP1' | 'LC3' | 'LUC';
 export type AgentId =
   | 'cisplatin'
@@ -9,10 +25,12 @@ export type AgentId =
   | 'hydroxyurea'
   | 'rapamycin'
   | 'chloroquine'
+  | 'temozolomide'
   | 'radiation';
 export type FlaskType = 'T25' | 'T75' | 'T175';
 /** Leitura de um experimento: ensaio de viabilidade (MTT) ou imagem de um marcador fluorescente. */
 export type Readout = 'MTT' | MarkerId;
+export type ContamType = 'bacteria' | 'fungus' | 'mycoplasma';
 
 export type Mood =
   | 'happy'
@@ -25,9 +43,26 @@ export type Mood =
   | 'sick'
   | 'dying'
   | 'dead'
-  | 'contaminated'
+  | 'bacteria'
+  | 'fungus'
+  | 'mycoplasma'
+  | 'treating'
   | 'transducing'
   | 'senescent';
+
+/** Mensagem traduzível: chave do dicionário + parâmetros. Strings que começam com "@" são chaves. */
+export interface Msg {
+  k: string;
+  p?: Record<string, string | number>;
+}
+
+export interface Contam {
+  type: ContamType;
+  /** 0–1 */
+  level: number;
+  /** bactéria/fungo aparecem sozinhos; micoplasma só com teste de PCR */
+  detected: boolean;
+}
 
 export interface Flask {
   id: string;
@@ -36,20 +71,21 @@ export interface Flask {
   type: FlaskType;
   medium: MediumId;
   incubatorId: string;
-  /** células vivas */
   live: number;
-  /** células mortas / debris */
   dead: number;
   passage: number;
-  /** mM */
   glucose: number;
-  /** mM */
   lactate: number;
-  /** mM */
   ammonia: number;
   pH: number;
   markers: MarkerId[];
-  contaminated: boolean;
+  contam: Contam | null;
+  /** meio atual tem Pen/Strep */
+  abx: boolean;
+  /** meio atual tem anfotericina B */
+  afx: boolean;
+  /** horas restantes de tratamento anti-micoplasma */
+  mycoTreat: number;
   transduction: { marker: MarkerId; hoursLeft: number } | null;
   seed: number;
   bornAt: number;
@@ -59,9 +95,10 @@ export interface Flask {
 export interface Incubator {
   id: string;
   name: string;
-  /** % de CO2 */
   co2Set: number;
   capacity: number;
+  /** carga de esporos de fungo, 0–1 */
+  spores: number;
 }
 
 export interface Vial {
@@ -71,6 +108,7 @@ export interface Vial {
   passage: number;
   viability: number;
   frozenAt: number;
+  contam: ContamType | null;
 }
 
 export interface Suspension {
@@ -80,6 +118,7 @@ export interface Suspension {
   dead: number;
   passage: number;
   from: string;
+  contam: Contam | null;
 }
 
 export interface Experiment {
@@ -98,17 +137,19 @@ export interface Experiment {
 export interface Paper {
   id: string;
   key: string;
-  title: string;
-  journal: string;
+  line: LineId;
+  agent: AgentId;
+  readout: Readout;
+  markers: MarkerId[];
+  journal: number;
   impact: number;
   reward: number;
   at: number;
 }
 
-export interface LogEntry {
+export interface LogEntry extends Msg {
   seq: number;
   t: number;
-  msg: string;
   kind: 'info' | 'good' | 'warn' | 'bad';
 }
 
@@ -117,11 +158,8 @@ export interface GameState {
   player: string;
   money: number;
   xp: number;
-  /** horas de jogo desde o início */
   time: number;
-  /** 0–100 % do cilindro de CO2 */
   co2Tank: number;
-  /** 0 = pausado, 1 = normal, 4 = acelerado */
   speed: number;
   incubators: Incubator[];
   flasks: Flask[];
@@ -129,16 +167,20 @@ export interface GameState {
   suspension: Suspension | null;
   experiments: Experiment[];
   replicates: Record<string, number>;
-  results: Record<string, string>;
   papers: Paper[];
   demand: Record<string, number>;
   inventory: Record<string, number>;
   equipment: { irradiator: boolean; fluo: boolean };
+  settings: { penstrep: boolean; ampho: boolean };
+  /** contadores para as missões */
+  stats: Record<string, number>;
+  quests: Record<string, 'claimed'>;
+  lastStipendDay: number;
+  helpReadyAt: number;
   log: LogEntry[];
   logSeq: number;
   selectedFlaskId: string | null;
   nextNo: number;
-  /** Date.now() do último tick, para calcular o tempo que passou offline */
   lastReal: number;
   tankWarned: number;
 }

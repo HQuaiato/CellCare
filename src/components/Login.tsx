@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { listProfiles, login } from '../game/store';
+import { t } from '../i18n';
+import { PrefsPicker } from './Prefs';
 
 export function Login() {
   const [name, setName] = useState('');
@@ -10,7 +12,8 @@ export function Login() {
       <div className="login-card">
         <img src="./icon.svg" alt="" width={96} height={96} />
         <h1>CellCare</h1>
-        <p className="muted">Cuide das suas células como num laboratório de verdade.</p>
+        <p className="muted">{t('login.tagline')}</p>
+        <PrefsPicker />
 
         <form
           onSubmit={(e) => {
@@ -18,15 +21,15 @@ export function Login() {
             login(name);
           }}
         >
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do(a) cientista" maxLength={24} autoFocus />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('login.name')} maxLength={24} autoFocus />
           <button className="btn primary block" disabled={!name.trim()}>
-            Entrar como convidado
+            {t('login.guest')}
           </button>
         </form>
 
         {profiles.length > 0 && (
           <div className="profiles">
-            <small className="muted">Continuar neste aparelho:</small>
+            <small className="muted">{t('login.continue')}</small>
             {profiles.map((p) => (
               <button key={p} className="btn block" onClick={() => login(p)}>
                 🧑‍🔬 {p}
@@ -35,10 +38,10 @@ export function Login() {
           </div>
         )}
 
-        <button className="btn block" disabled title="Em breve">
-          🔐 Entrar com Google / e-mail (em breve)
+        <button className="btn block" disabled>
+          🔐 {t('login.account')}
         </button>
-        <p className="muted small">O progresso de convidado fica salvo neste navegador.</p>
+        <p className="muted small">{t('login.localNote')}</p>
       </div>
     </div>
   );

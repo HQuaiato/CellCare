@@ -1,5 +1,6 @@
 import { SPEEDS, levelProgress } from '../game/data';
 import { act, useGame } from '../game/store';
+import { t } from '../i18n';
 import { fmtClock, fmtMoney } from './ui';
 
 const SPEED_ICON: Record<number, string> = { 0: '⏸', 1: '▶', 4: '⏩' };
@@ -13,11 +14,13 @@ export function HUD() {
         <div className="brand">
           🧫 <b>CellCare</b>
         </div>
-        <div className="money">{fmtMoney(s.money)}</div>
+        <div className="money" title={t('ui.currencyName')}>
+          {fmtMoney(s.money)}
+        </div>
       </div>
       <div className="hud-row">
         <div className="level" title={`${s.xp} XP`}>
-          <span className="lv">Nv {lv}</span>
+          <span className="lv">{t('ui.lv', { lv })}</span>
           <div className="xp">
             <div style={{ width: `${Math.min(100, pct * 100)}%` }} />
           </div>
@@ -25,12 +28,12 @@ export function HUD() {
         <div className="clock">{fmtClock(s.time)}</div>
         <div className="speeds">
           {SPEEDS.map((v) => (
-            <button key={v} className={s.speed === v ? 'on' : ''} onClick={() => act((st) => void (st.speed = v), true)} aria-label={`velocidade ${v}`}>
+            <button key={v} className={s.speed === v ? 'on' : ''} onClick={() => act((st) => void (st.speed = v), true)} title={t(`ui.speed${v}`)}>
               {SPEED_ICON[v]}
             </button>
           ))}
         </div>
-        <div className={`tank ${s.co2Tank < 20 ? 'low' : ''}`} title="Cilindro de CO₂">
+        <div className={`tank ${s.co2Tank < 20 ? 'low' : ''}`} title={t('ui.co2Tank')}>
           CO₂ {Math.round(s.co2Tank)}%
         </div>
       </div>

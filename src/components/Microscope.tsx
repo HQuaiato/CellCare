@@ -22,7 +22,7 @@ export function Microscope({ flask, fluo }: { flask: Flask; fluo: boolean }) {
   const conf = Math.min(1.05, confluence(flask));
   const n = flask.live > 5e3 ? Math.max(1, Math.round(conf * 150)) : 0;
   const nDead = Math.min(70, Math.round((n + 5) * (flask.dead / Math.max(1, flask.live)) * 0.6));
-  const key = `${n}|${nDead}|${fluo}|${flask.markers.join()}|${flask.contaminated}`;
+  const key = `${n}|${nDead}|${fluo}|${flask.markers.join()}|${flask.contam?.type}|${Math.round((flask.contam?.level ?? 0) * 10)}`;
 
   useEffect(() => {
     const c = ref.current;
@@ -126,10 +126,40 @@ export function Microscope({ flask, fluo }: { flask: Flask; fluo: boolean }) {
         g.strokeStyle = 'rgba(255,255,255,0.8)';
         g.stroke();
       }
-      if (flask.contaminated) {
+      const c = flask.contam;
+      if (c?.type === 'bacteria') {
+        // bactérias: milhares de pontinhos tremendo entre as células
         g.fillStyle = 'rgba(30,25,15,0.7)';
-        for (let i = 0; i < 600; i++) g.fillRect(r() * SIZE, r() * SIZE, 1.6, 1.6);
+        for (let i = 0; i < 1500 * c.level; i++) g.fillRect(r() * SIZE, r() * SIZE, 1.6, 1.6);
+      } else if (c?.type === 'fungus') {
+        // fungo: hifas ramificadas e leveduras brotando
+        g.strokeStyle = 'rgba(60,70,40,0.75)';
+        g.lineWidth = 1.6;
+        for (let i = 0; i < 14 * c.level + 2; i++) {
+          let x = r() * SIZE;
+          let y = r() * SIZE;
+          let a = r() * Math.PI * 2;
+          g.beginPath();
+          g.moveTo(x, y);
+          for (let k = 0; k < 8; k++) {
+            a += (r() - 0.5) * 0.8;
+            x += Math.cos(a) * 14;
+            y += Math.sin(a) * 14;
+            g.lineTo(x, y);
+          }
+          g.stroke();
+        }
+        g.fillStyle = 'rgba(90,100,60,0.7)';
+        for (let i = 0; i < 40 * c.level; i++) {
+          const x = r() * SIZE;
+          const y = r() * SIZE;
+          g.beginPath();
+          g.ellipse(x, y, 4, 3, r() * 3, 0, Math.PI * 2);
+          g.ellipse(x + 4, y + 3, 2.5, 2, 0, 0, Math.PI * 2);
+          g.fill();
+        }
       }
+      // micoplasma: invisível no contraste de fase (por isso precisa de PCR!)
     }
     g.restore();
     g.beginPath();

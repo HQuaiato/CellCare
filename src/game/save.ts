@@ -1,12 +1,10 @@
-import type { GameState } from './types';
-
 /**
  * Backend de save. Hoje é local (localStorage); depois basta criar um backend
  * Supabase com a mesma interface para ter login e save na nuvem.
  */
 export interface SaveBackend {
-  load(profile: string): GameState | null;
-  save(profile: string, state: GameState): void;
+  load(profile: string): unknown;
+  save(profile: string, state: unknown): void;
   list(): string[];
   remove(profile: string): void;
 }
@@ -17,7 +15,7 @@ export const localBackend: SaveBackend = {
   load(profile) {
     try {
       const raw = localStorage.getItem(PREFIX + profile);
-      return raw ? (JSON.parse(raw) as GameState) : null;
+      return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
