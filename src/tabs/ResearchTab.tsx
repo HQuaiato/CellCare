@@ -1,4 +1,4 @@
-import { fmtDuration, fmtMoney, fmtNum } from '../components/ui';
+import { Info, fmtDuration, fmtMoney, fmtNum } from '../components/ui';
 import { LEVELS, LINES, MARKERS, finding, levelOf, unlocksAt } from '../game/data';
 import { REPLICATES_FOR_PAPER, parseKey, readoutName } from '../game/research';
 import { useGame } from '../game/store';
@@ -77,13 +77,14 @@ export function ResearchTab() {
       </section>
 
       <section className="card">
-        <h3>🗺️ {t('res.nextLevels')}</h3>
+        <h3>
+          🗺️ {t('res.nextLevels')} <Info k="res.xpHint" />
+        </h3>
         {next.map((l) => (
           <p key={l} className="small">
             <b>{t('ui.lvLong', { lv: l })}</b> ({LEVELS[l - 1]} XP): {t('res.unlocks', { u: unlocksAt(l).join('|') || '@res.prestige' })}
           </p>
         ))}
-        <p className="muted small">{t('res.xpHint')}</p>
       </section>
     </div>
   );

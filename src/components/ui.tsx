@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { CURRENCY } from '../game/data';
 import { useToasts } from '../game/store';
 import { fmtN, t, tm } from '../i18n';
@@ -29,13 +30,49 @@ export function fmtDuration(h: number) {
 
 export type Tone = 'good' | 'warn' | 'bad' | 'neutral';
 
-/** Botão ⓘ que abre uma explicação curta. */
-export function Info({ k, p }: { k: string; p?: Record<string, string | number> }) {
+/** Texto com quebras de linha vira parágrafos (linhas começando com • viram lista). */
+export function Paras({ text }: { text: string }) {
   return (
-    <details className="info-tip" onClick={(e) => e.stopPropagation()}>
-      <summary aria-label={t('ui.whatIsThis')}>i</summary>
-      <p>{t(k, p)}</p>
-    </details>
+    <>
+      {text.split('\n').map((line, i) => (
+        <p key={i} className={line.startsWith('•') ? 'bullet' : ''}>
+          {line}
+        </p>
+      ))}
+    </>
+  );
+}
+
+/** Botão ⓘ: abre uma folha com a explicação. Use k (chave) ou text (texto pronto). */
+export function Info({ k, p, text, title }: { k?: string; p?: Record<string, string | number>; text?: string; title?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        className="info-btn"
+        aria-label={t('ui.whatIsThis')}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen(true);
+        }}
+      >
+        i
+      </button>
+      {open &&
+        createPortal(
+          <div className="sheet-backdrop" onClick={() => setOpen(false)}>
+            <div className="sheet" onClick={(e) => e.stopPropagation()}>
+              {title && <h3>{title}</h3>}
+              <Paras text={text ?? t(k!, p)} />
+              <button className="btn primary block" onClick={() => setOpen(false)}>
+                {t('ui.gotIt')}
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -44,7 +81,7 @@ export function Bar({ label, value, fill, tone, help }: { label: string; value: 
     <div className="bar">
       <div className="bar-head">
         <span>
-          {label} {help && <Info k={help} />}
+          {label} {help && <Info k={help} title={label} />}
         </span>
         <b>{value}</b>
       </div>

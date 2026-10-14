@@ -17,7 +17,7 @@ export function IncubatorsTab({ openFlask }: { openFlask: (id: string) => void }
       <section className="card">
         <div className="row between">
           <h3>
-            🧯 {t('inc.tank')} <Info k="help.co2" />
+            🧯 {t('inc.tank')} <Info text={`${t('help.co2')}\n${t('inc.tankInfo', { pct: Math.round(tank), use: Math.round(0.35 * s.incubators.length * 24), n: s.incubators.length })}`} title={t('inc.tank')} />
           </h3>
           <button className="btn small" onClick={() => act((st) => buy(st, 'co2'))}>
             {t('inc.refill', { p: fmtMoney(shopPrice(s, 'co2')) })}
@@ -26,17 +26,16 @@ export function IncubatorsTab({ openFlask }: { openFlask: (id: string) => void }
         <div className="bar-track tall">
           <div className={`bar-fill tone-${tank < 10 ? 'bad' : tank < 25 ? 'warn' : 'good'}`} style={{ width: `${tank}%` }} />
         </div>
-        <p className="muted small">{t('inc.tankInfo', { pct: Math.round(tank), use: Math.round(0.35 * s.incubators.length * 24), n: s.incubators.length })}</p>
       </section>
 
       <section className="card">
         <h3>
-          🛡️ {t('inc.protection')} <Info k="help.protection" />
+          🛡️ {t('inc.protection')} <Info text={`${t('help.protection')}\n• Pen/Strep: ${t('inc.penstrepInfo', { n: fmtNum(have(s, 'penstrep')) })}\n• ${t('inv.ampho')}: ${t('inc.amphoInfo', { n: fmtNum(have(s, 'ampho')) })}`} title={t('inc.protection')} />
         </h3>
         <label className="toggle">
           <input type="checkbox" checked={s.settings.penstrep} onChange={(e) => act((st) => setSetting(st, 'penstrep', e.target.checked), true)} />
           <span>
-            <b>Pen/Strep</b> · {t('inc.penstrepInfo', { n: fmtNum(have(s, 'penstrep')) })}
+            <b>Pen/Strep</b> <small className="muted">{fmtNum(have(s, 'penstrep'))} mL</small>
           </span>
         </label>
         <label className={`toggle ${lv < CONTAM.fungus.level ? 'locked' : ''}`}>
@@ -47,7 +46,8 @@ export function IncubatorsTab({ openFlask }: { openFlask: (id: string) => void }
             onChange={(e) => act((st) => setSetting(st, 'ampho', e.target.checked), true)}
           />
           <span>
-            <b>{t('inv.ampho')}</b> · {lv < CONTAM.fungus.level ? t('err.levelLocked', { lv: CONTAM.fungus.level }) : t('inc.amphoInfo', { n: fmtNum(have(s, 'ampho')) })}
+            <b>{t('inv.ampho')}</b>{' '}
+            <small className="muted">{lv < CONTAM.fungus.level ? `🔒 ${t('err.levelLocked', { lv: CONTAM.fungus.level })}` : `${fmtNum(have(s, 'ampho'))} mL`}</small>
           </span>
         </label>
       </section>
@@ -69,7 +69,7 @@ export function IncubatorsTab({ openFlask }: { openFlask: (id: string) => void }
             </label>
             {media.length > 0 && (
               <p className="muted small">
-                {t('inc.freshPh')} {media.map((md) => `${t(`medium.${md}.short`)} ${fmtNum(eqPH(md, 0, tank > 0 ? inc.co2Set : 0.04), 2)}`).join(' · ')}. {t('inc.ideal')}
+                {t('inc.freshPh')} {media.map((md) => `${t(`medium.${md}.short`)} ${fmtNum(eqPH(md, 0, tank > 0 ? inc.co2Set : 0.04), 2)}`).join(' · ')} <Info text={`${t('inc.freshPhInfo')} ${t('inc.ideal')}`} />
               </p>
             )}
             {lv >= CONTAM.fungus.level && (

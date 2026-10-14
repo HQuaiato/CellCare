@@ -1,12 +1,10 @@
 import { PrefsPicker } from '../components/Prefs';
-import { fmtClock, fmtMoney } from '../components/ui';
-import { claimQuest } from '../game/actions';
-import { STIPEND, levelOf } from '../game/data';
+import { Info, fmtClock, fmtMoney } from '../components/ui';
+import { claimQuest, setSetting } from '../game/actions';
+import { LESSONS, queueLesson } from '../game/lessons';
 import { QUESTS } from '../game/quests';
 import { act, exportSave, logout, resetGame, useGame } from '../game/store';
 import { t, tm } from '../i18n';
-
-export const GUIDE = ['time', 'medium', 'co2', 'passage', 'freeze', 'contam', 'money', 'games', 'scopes', 'research'];
 
 export function LabTab() {
   const s = useGame();
@@ -24,8 +22,11 @@ export function LabTab() {
     <div className="stack grid-2">
       <section className="card">
         <h3>🧑‍🔬 {s.player}</h3>
-        <p className="muted small">{t('lab.profileNote')}</p>
         <PrefsPicker />
+        <label className="toggle">
+          <input type="checkbox" checked={s.settings.tips} onChange={(e) => act((st) => setSetting(st, 'tips', e.target.checked), true)} />
+          <span>{t('lab.tips')}</span>
+        </label>
         <div className="row wrap">
           <button className="btn small" onClick={download}>
             💾 {t('lab.export')}
@@ -54,8 +55,9 @@ export function LabTab() {
               <li key={q.id} className={claimed ? 'claimed' : done ? 'ready' : ''}>
                 <span>{claimed ? '✅' : done ? '🎁' : '⬜'}</span>
                 <div className="grow">
-                  <b>{t(`quest.${q.id}.title`)}</b>
-                  <small>{t(`quest.${q.id}.how`)}</small>
+                  <b>
+                    {t(`quest.${q.id}.title`)} <Info k={`quest.${q.id}.how`} title={t(`quest.${q.id}.title`)} />
+                  </b>
                 </div>
                 {!claimed && (
                   <button className="btn small gold" disabled={!done} onClick={() => act((st) => claimQuest(st, q.id))}>
@@ -69,14 +71,20 @@ export function LabTab() {
       </section>
 
       <section className="card span-2">
-        <h3>📘 {t('lab.guide')}</h3>
-        <p className="muted small">{t('lab.guideIntro', { stipend: fmtMoney(STIPEND(levelOf(s.xp))) })}</p>
-        {GUIDE.map((g, i) => (
-          <details key={g} className="guide-item" open={i === 0 && s.time < 30}>
-            <summary>{t(`guide.${g}.title`)}</summary>
-            <p>{t(`guide.${g}.body`)}</p>
-          </details>
-        ))}
+        <h3>
+          📘 {t('lab.lessons')} · {Object.keys(s.lessons).length}/{LESSONS.length} <Info k="lab.lessonsIntro" />
+        </h3>
+        <div className="lesson-grid">
+          {LESSONS.map((l) => {
+            const seen = !!s.lessons[l.id];
+            return (
+              <button key={l.id} className={`lesson-chip ${seen ? '' : 'locked'}`} disabled={!seen} onClick={() => act((st) => queueLesson(st, l.id, true), true)}>
+                <span>{seen ? l.icon : '🔒'}</span>
+                {seen ? t(`lesson.${l.id}.title`) : t('lesson.locked')}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       <section className="card span-2">

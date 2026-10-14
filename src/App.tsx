@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { HUD } from './components/HUD';
+import { LessonModal } from './components/LessonModal';
 import { Login } from './components/Login';
 import { Toasts } from './components/ui';
+import { queueLesson } from './game/lessons';
 import { act, useGameMaybe } from './game/store';
 import { t, usePrefs } from './i18n';
 import { SuspensionModal } from './modals/SuspensionModal';
@@ -27,7 +29,12 @@ const TABS: { id: Tab; icon: string }[] = [
 
 function Game() {
   const s = useGameMaybe()!;
-  const [tab, setTab] = useState<Tab>('culture');
+  const [tab, setTabRaw] = useState<Tab>('culture');
+  const setTab = (tb: Tab) => {
+    setTabRaw(tb);
+    if (tb === 'shop' || tb === 'freezer' || tb === 'games' || tb === 'research') act((st) => queueLesson(st, tb), true);
+    if (tb === 'incubators') act((st) => queueLesson(st, 'co2'), true);
+  };
   const running = s.experiments.length;
 
   return (
@@ -62,6 +69,7 @@ function Game() {
         </main>
       </div>
       {s.suspension && <SuspensionModal />}
+      {tab !== 'games' && s.lessonQueue.length > 0 && <LessonModal />}
       <Toasts />
     </div>
   );

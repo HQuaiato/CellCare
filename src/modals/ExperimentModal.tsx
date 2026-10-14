@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Modal, pct } from '../components/ui';
+import { useEffect } from 'react';
+import { Info, Modal, pct } from '../components/ui';
+import { queueLesson } from '../game/lessons';
 import { experimentHours, experimentQuality, have, startExperiment } from '../game/actions';
 import { AGENT_ORDER, AGENTS, LINES, MARKERS, finding, hasScope, levelOf } from '../game/data';
 import { REPLICATES_FOR_PAPER, expKey } from '../game/research';
@@ -18,14 +20,19 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
   const key = agent ? expKey(flask.line, agent, readout) : null;
   const n = key ? s.replicates[key] ?? 0 : 0;
 
+  useEffect(() => {
+    act((st) => queueLesson(st, 'experiment'), true);
+  }, []);
+
   const agentAvail = (a: AgentId) => (AGENTS[a].needsIrradiator ? s.equipment.irradiator : have(s, `drug_${a}`) > 0);
   const fluo = hasScope(s.equipment.scope, 'fluo');
   const readoutAvail = (r: Readout) => (r === 'MTT' ? have(s, 'MTT') > 0 : fluo);
 
   return (
     <Modal title={`🧪 ${t('exp.title')}`} onClose={onClose}>
-      <p className="muted small">{t('exp.intro', { n: REPLICATES_FOR_PAPER })}</p>
-      <div className={`quality q-${q >= 0.8 ? 'good' : q >= 0.5 ? 'warn' : 'bad'}`}>{t('exp.quality', { q: pct(q) })}</div>
+      <div className={`quality q-${q >= 0.8 ? 'good' : q >= 0.5 ? 'warn' : 'bad'}`}>
+        {t('exp.quality', { q: pct(q) })} <Info k="exp.intro" p={{ n: REPLICATES_FOR_PAPER }} title={t('exp.title')} />
+      </div>
 
       <h4>1. {t('exp.agent')}</h4>
       <div className="pick">
@@ -50,7 +57,6 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
           </button>
         ))}
       </div>
-      {flask.markers.length === 0 && <p className="hint">💡 {t('exp.markerHint')}</p>}
       {s.boosts.lucky > 0 && <p className="hint">🍀 {t('exp.lucky')}</p>}
 
       {key && agent && (

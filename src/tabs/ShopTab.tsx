@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CellAvatar, previewFlask } from '../components/CellAvatar';
-import { fmtMoney, fmtNum } from '../components/ui';
+import { Info, fmtMoney, fmtNum } from '../components/ui';
 import { buy, have, shopLevel, shopPrice } from '../game/actions';
 import { LINES, MARKERS, MEDIA, PASSES, SCOPES, SHOP, SHOP_CATS, levelOf, type ShopCat, type ShopItem } from '../game/data';
 import { act, useGame } from '../game/store';
@@ -59,12 +59,16 @@ function CellShop({ s }: { s: GameState }) {
               <CellAvatar flask={previewFlask(item.line!)} time={0} />
             </div>
             <h3>
-              {L.badge} {L.name}
+              {L.badge} {L.name}{' '}
+              <Info
+                title={L.name}
+                text={[
+                  `${t(`line.${item.line}.origin`)}.`,
+                  t(`line.${item.line}.fact`),
+                  `${t(`medium.${L.medium}`)} · ${L.suspension ? t('shop.suspension') : t(`morph.${L.morph}`)} · ${t('shop.doubling', { h: L.td })}`,
+                ].join('\n')}
+              />
             </h3>
-            <p className="muted small">{t(`line.${item.line}.origin`)}</p>
-            <p className="small">
-              {t(`medium.${L.medium}.short`)} · {L.suspension ? t('shop.suspension') : t(`morph.${L.morph}`)} · {L.td} h
-            </p>
             <p className="small">{early ? `🔒 ${t('shop.lineLevel', { lv: item.level })}` : inFreezer ? t('shop.inFreezer', { n: inFreezer }) : t('shop.lineReady')}</p>
             <button className="btn gold block" disabled={s.money < price} onClick={() => act((st) => buy(st, item.id))}>
               {early ? t('shop.earlyBuy', { p: fmtMoney(price) }) : fmtMoney(price)}
@@ -89,8 +93,8 @@ export function ShopTab() {
             {t(`cat.${c}`)}
           </button>
         ))}
+        <Info k={`cat.${cat}.hint`} title={t(`cat.${cat}`)} />
       </div>
-      <p className="muted small">{t(`cat.${cat}.hint`)}</p>
       {cat === 'cells' ? (
         <CellShop s={s} />
       ) : (
@@ -106,9 +110,9 @@ export function ShopTab() {
                   <h3>
                     {locked && '🔒 '}
                     {itemName(s, item)}
-                    {item.qty && item.qty > 1 && <small className="muted"> · {item.qty} {t(`unit.${item.unit}`)}</small>}
+                    {item.qty && item.qty > 1 && <small className="muted"> · {item.qty} {t(`unit.${item.unit}`)}</small>}{' '}
+                    <Info text={itemDesc(s, item)} title={itemName(s, item)} />
                   </h3>
-                  <p className="muted small">{itemDesc(s, item)}</p>
                   <p className="small">{locked ? t('err.levelLocked', { lv: need }) : owned(s, item)}</p>
                 </div>
                 {!maxed && (

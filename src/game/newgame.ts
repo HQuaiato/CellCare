@@ -3,7 +3,7 @@ import { log } from './econ';
 import { eqPH } from './sim';
 import type { GameState } from './types';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export function newGame(player: string): GameState {
   const s: GameState = {
@@ -39,7 +39,9 @@ export function newGame(player: string): GameState {
     boosts: { autoFeedUntil: 0, shieldUntil: 0, sale2xUntil: 0, xp2xUntil: 0, lucky: 0 },
     gamePlays: { day: 0, counts: {} },
     bestScores: {},
-    settings: { penstrep: false, ampho: false },
+    settings: { penstrep: false, ampho: false, tips: true },
+    lessons: {},
+    lessonQueue: [],
     stats: {},
     quests: {},
     lastStipendDay: 0,
@@ -76,7 +78,6 @@ export function newGame(player: string): GameState {
     lastMood: 'happy',
   });
   log(s, 'log.welcome');
-  log(s, 'log.tip');
   return s;
 }
 
@@ -85,7 +86,8 @@ export function newGame(player: string): GameState {
 export function migrate(raw: any): GameState | null {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.version === SAVE_VERSION) return raw as GameState;
-  if (raw.version === 2) return v2to3(raw);
+  if (raw.version === 3) return v3to4(raw);
+  if (raw.version === 2) return v3to4(v2to3(raw));
   if (raw.version !== 1) return null;
   const s = raw;
   s.version = SAVE_VERSION;
@@ -114,7 +116,7 @@ export function migrate(raw: any): GameState | null {
   });
   s.log = [];
   s.logSeq = 0;
-  return v2to3(s);
+  return v3to4(v2to3(s));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -124,6 +126,16 @@ function v2to3(s: any): GameState {
   s.boosts = { autoFeedUntil: 0, shieldUntil: 0, sale2xUntil: 0, xp2xUntil: 0, lucky: 0 };
   s.gamePlays = { day: 0, counts: {} };
   s.bestScores = {};
+  return s as GameState;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function v3to4(s: any): GameState {
+  s.version = SAVE_VERSION;
+  s.settings = { ...s.settings, tips: true };
+  // quem já jogava não precisa das lições do começo
+  s.lessons = s.time > 48 ? { welcome: 1, care: 1 } : {};
+  s.lessonQueue = [];
   log(s, 'log.migrated');
   return s as GameState;
 }

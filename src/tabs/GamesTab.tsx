@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fmtMoney } from '../components/ui';
+import { Info, fmtMoney } from '../components/ui';
 import { gameCoins, gamePlaysToday, rewardGame } from '../game/actions';
 import { GAMES, gameMult } from '../game/data';
 import { act, getGame, useGame } from '../game/store';
@@ -29,7 +29,7 @@ export function GamesTab() {
       <div className="stack game-stage">
         <div className="row between">
           <h3>
-            {GAMES.find((g) => g.id === playing)!.icon} {t(`game.${playing}`)}
+            {GAMES.find((g) => g.id === playing)!.icon} {t(`game.${playing}`)} <Info k={`game.${playing}.how`} title={t(`game.${playing}`)} />
           </h3>
           <button
             className="btn small"
@@ -83,7 +83,9 @@ export function GamesTab() {
 
   return (
     <div className="stack">
-      <p className="muted small">{t('games.intro')}</p>
+      <h3>
+        🎮 {t('games.title')} <Info k="games.intro" title={t('games.title')} />
+      </h3>
       <div className="grid-2">
         {GAMES.map((g) => {
           const plays = gamePlaysToday(s, g.id);
@@ -92,12 +94,13 @@ export function GamesTab() {
             <section key={g.id} className="card game-card">
               <div className="game-icon">{g.icon}</div>
               <div className="grow">
-                <h3>{t(`game.${g.id}`)}</h3>
-                <p className="small muted">{t(`game.${g.id}.desc`)}</p>
+                <h3>
+                  {t(`game.${g.id}`)}{' '}
+                  <Info text={`${t(`game.${g.id}.desc`)}\n${t(`game.${g.id}.how`)}\n${t('games.cap', { c: fmtMoney(g.cap) })}`} title={t(`game.${g.id}`)} />
+                </h3>
                 <p className="small">
                   🏆 {s.bestScores[g.id] ?? 0} · {t('games.today', { n: plays })} · {t('games.mult', { pct: Math.round(mult * 100) })}
                 </p>
-                <p className="small muted">{t('games.cap', { c: fmtMoney(g.cap) })}</p>
               </div>
               <button
                 className="btn primary"

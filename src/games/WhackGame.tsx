@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { t } from '../i18n';
 
 /** Caça-Contaminantes: uma placa de 12 poços; toque nos contaminantes e poupe as células saudáveis. */
 const WELLS = 12;
@@ -90,7 +89,6 @@ export function WhackGame({ onFinish }: { onFinish: (score: number) => void }) {
           </button>
         ))}
       </div>
-      <p className="muted small center">{t('game.whack.how')}</p>
     </div>
   );
 }

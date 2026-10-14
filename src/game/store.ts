@@ -3,6 +3,7 @@ import { tm } from '../i18n';
 import { GameError } from './actions';
 import { OFFLINE_CAP_H } from './data';
 import { log } from './econ';
+import { checkLessons } from './lessons';
 import { migrate, newGame } from './newgame';
 import { lastProfile, localBackend } from './save';
 import { advance } from './sim';
@@ -87,6 +88,7 @@ export function act(fn: (s: GameState) => Msg | void, quiet = false): boolean {
   const draft = structuredClone(state);
   try {
     const msg = fn(draft);
+    checkLessons(draft);
     state = draft;
     toastNewLogs();
     emit();
@@ -109,6 +111,7 @@ function tick() {
   const draft = structuredClone(state);
   draft.lastReal = now;
   if (hours > 0) advance(draft, hours);
+  checkLessons(draft);
   state = draft;
   toastNewLogs();
   emit();

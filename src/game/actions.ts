@@ -405,6 +405,7 @@ export function moveFlask(s: GameState, flaskId: string, incId: string) {
 
 export function setSetting(s: GameState, key: keyof GameState['settings'], value: boolean) {
   s.settings[key] = value;
+  if (key === 'tips' && !value) s.lessonQueue = [];
 }
 
 // ---------------------------------------------------------------- recuperação e missões

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { t } from '../i18n';
 
 /** Chuva de Nutrientes: pegue glicose, glutamina e SFB; desvie de bactérias, fungos e micoplasma. */
 const W = 340;
@@ -154,7 +153,6 @@ export function DropGame({ onFinish }: { onFinish: (score: number) => void }) {
         <span>{'❤️'.repeat(Math.max(0, hud.lives))}</span>
       </div>
       <canvas ref={ref} className="game-canvas" style={{ aspectRatio: `${W} / ${H}` }} onPointerMove={move} onPointerDown={move} />
-      <p className="muted small center">{t('game.drop.how')}</p>
     </div>
   );
 }

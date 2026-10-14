@@ -183,7 +183,10 @@ export interface GameState {
   boosts: { autoFeedUntil: number; shieldUntil: number; sale2xUntil: number; xp2xUntil: number; lucky: number };
   gamePlays: { day: number; counts: Record<string, number> };
   bestScores: Record<string, number>;
-  settings: { penstrep: boolean; ampho: boolean };
+  settings: { penstrep: boolean; ampho: boolean; tips: boolean };
+  /** lições já vistas e fila de lições a mostrar */
+  lessons: Record<string, 1>;
+  lessonQueue: string[];
   /** contadores para as missões */
   stats: Record<string, number>;
   quests: Record<string, 'claimed'>;

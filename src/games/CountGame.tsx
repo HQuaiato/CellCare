@@ -107,7 +107,6 @@ export function CountGame({ onFinish }: { onFinish: (score: number) => void }) {
         <button className="btn primary">{feedback ? (round >= ROUNDS ? t('game.finish') : t('game.next')) : t('game.count.check')}</button>
       </form>
       {feedback && <p className="hint center">{feedback}</p>}
-      <p className="muted small center">{t('game.count.how')}</p>
     </div>
   );
 }

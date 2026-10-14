@@ -61,7 +61,6 @@ export function MemoryGame({ onFinish }: { onFinish: (score: number) => void }) 
           );
         })}
       </div>
-      <p className="muted small center">{t('game.memory.how')}</p>
     </div>
   );
 }

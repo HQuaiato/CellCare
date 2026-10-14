@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Empty, fmtMoney, pct } from '../components/ui';
+import { Empty, Info, fmtMoney, pct } from '../components/ui';
 import { sellVial, thaw } from '../game/actions';
 import { CELLS_PER_VIAL, FLASK_TYPES, LINES, MARKERS } from '../game/data';
 import { VIAL_PREMIUM, unitPrice } from '../game/econ';
@@ -20,7 +20,7 @@ export function FreezerTab({ onThaw }: { onThaw: () => void }) {
   if (!s.vials.length) {
     return (
       <Empty icon="❄️" title={t('freezer.empty')}>
-        <p>{t('freezer.emptyText')}</p>
+        <Info k="freezer.emptyText" title={t('freezer.empty')} />
       </Empty>
     );
   }
@@ -28,7 +28,9 @@ export function FreezerTab({ onThaw }: { onThaw: () => void }) {
   return (
     <div className="stack grid-2">
       <section className="card span-2">
-        <h3>❄️ {t('freezer.title', { n: s.vials.length })}</h3>
+        <h3>
+          ❄️ {t('freezer.title', { n: s.vials.length })} <Info k="freezer.hint" title={t('tab.freezer')} />
+        </h3>
         <div className="row">
           <span className="muted">{t('freezer.thawIn')}</span>
           <div className="seg small">
@@ -39,7 +41,6 @@ export function FreezerTab({ onThaw }: { onThaw: () => void }) {
             ))}
           </div>
         </div>
-        <p className="muted small">{t('freezer.hint')}</p>
       </section>
       {[...groups.values()].map((vs) => {
         const v = vs[0];

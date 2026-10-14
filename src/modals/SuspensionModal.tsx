@@ -48,7 +48,19 @@ export function SuspensionModal() {
       <p className="hint warn">⏱️ {t('sus.hurry')}</p>
       {visibleContam && <p className="hint bad">⚠️ {t('sus.contaminated')}</p>}
 
-      <h4>{t('sus.seed')}</h4>
+      <h4>
+        {t('sus.seed')}{' '}
+        <Info
+          title={t('sus.seed')}
+          text={t('sus.seedHint', {
+            rec: fmtNum(recommendedSeed(sus.line, type) / 1e6),
+            uses: Object.entries(needs)
+              .map(([k, n]) => `${fmtNum(n)} mL ${k === 'FBS' ? t('inv.FBS') : t(`medium.${L.medium}.short`)}`)
+              .join(' + '),
+            slots: freeSlots(s),
+          })}
+        />
+      </h4>
       <div className="seg small">
         {FLASK_TYPES.map((tp) => (
           <button key={tp} className={type === tp ? 'on' : ''} onClick={() => pickType(tp)}>
@@ -66,17 +78,14 @@ export function SuspensionModal() {
           {t('sus.seedBtn')}
         </button>
       </div>
-      <p className="muted small">
-        {t('sus.seedHint', {
-          rec: fmtNum(recommendedSeed(sus.line, type) / 1e6),
-          uses: Object.entries(needs)
-            .map(([k, n]) => `${fmtNum(n)} mL ${k === 'FBS' ? t('inv.FBS') : t(`medium.${L.medium}.short`)}`)
-            .join(' + '),
-          slots: freeSlots(s),
-        })}
-      </p>
 
-      <h4>{t('sus.freeze')}</h4>
+      <h4>
+        {t('sus.freeze')}{' '}
+        <Info
+          title={t('sus.freeze')}
+          text={t('sus.freezeHint', { fbs: fmtNum(0.9 * vials), dmso: fmtNum(0.1 * vials), hFbs: fmtNum(have(s, 'FBS')), hDmso: fmtNum(have(s, 'DMSO')), hVials: have(s, 'cryovial') })}
+        />
+      </h4>
       <div className="row">
         <input
           type="number"
@@ -91,9 +100,6 @@ export function SuspensionModal() {
           ❄️ {t('sus.freezeBtn')}
         </button>
       </div>
-      <p className="muted small">
-        {t('sus.freezeHint', { fbs: fmtNum(0.9 * vials), dmso: fmtNum(0.1 * vials), hFbs: fmtNum(have(s, 'FBS')), hDmso: fmtNum(have(s, 'DMSO')), hVials: have(s, 'cryovial') })}
-      </p>
 
       <div className="row end wrap">
         <button className="btn danger" onClick={() => act(discardSuspension)}>
