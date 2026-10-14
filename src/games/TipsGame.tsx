@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 
-/** Arrumar ponteiras: arraste cada ponteira para um buraco da caixa do mesmo tamanho. */
-const ROWS = 4;
-const COLS = 6;
+/** Arrumar ponteiras: separe as ponteiras soltas nas caixas P10, P200 e P1000. */
+const ROWS = 3;
+const COLS = 4;
+const HOLES = ROWS * COLS;
 const DURATION = 45;
 const SIZES = [
   { id: 'p10', label: 'P10', color: '#e5e7eb', box: '#94a3b8' },
@@ -18,11 +19,9 @@ interface Tip {
 }
 
 let nextId = 0;
-function newTip(boxSize: Size): Tip {
-  const size = Math.random() < 0.6 ? boxSize : SIZES[Math.floor(Math.random() * 3)].id;
-  return { id: ++nextId, size };
-}
+const newTip = (): Tip => ({ id: ++nextId, size: SIZES[Math.floor(Math.random() * SIZES.length)].id });
 const def = (s: Size) => SIZES.find((x) => x.id === s)!;
+const emptyBoxes = (): Record<Size, boolean[]> => ({ p10: Array(HOLES).fill(false), p200: Array(HOLES).fill(false), p1000: Array(HOLES).fill(false) });
 
 function TipIcon({ size }: { size: Size }) {
   const d = def(size);
@@ -36,9 +35,8 @@ function TipIcon({ size }: { size: Size }) {
 }
 
 export function TipsGame({ onFinish }: { onFinish: (score: number) => void }) {
-  const [box, setBox] = useState<Size>('p200');
-  const [filled, setFilled] = useState<boolean[]>(Array(ROWS * COLS).fill(false));
-  const [tray, setTray] = useState<Tip[]>(() => Array.from({ length: 5 }, () => newTip('p200')));
+  const [boxes, setBoxes] = useState(emptyBoxes);
+  const [tray, setTray] = useState<Tip[]>(() => Array.from({ length: 5 }, newTip));
   const [selected, setSelected] = useState<number | null>(null);
   const [drag, setDrag] = useState<{ id: number; x: number; y: number } | null>(null);
   const [score, setScore] = useState(0);
@@ -71,28 +69,22 @@ export function TipsGame({ onFinish }: { onFinish: (score: number) => void }) {
     }
   };
 
-  const place = (tipId: number, hole: number) => {
+  const place = (tipId: number, box: Size, hole: number) => {
     const tip = tray.find((x) => x.id === tipId);
-    if (!tip || filled[hole]) return;
-    const rest = tray.filter((x) => x.id !== tipId);
+    if (!tip || boxes[box][hole]) return;
+    const rest = [...tray.filter((x) => x.id !== tipId), newTip()];
+    setTray(rest);
+    setSelected(null);
     if (tip.size !== box) {
       add(-2, t('game.tips.wrong'));
-      setTray([...rest, newTip(box)]);
       return;
     }
-    const next = filled.map((f, i) => (i === hole ? true : f));
+    const next = boxes[box].map((f, i) => (i === hole ? true : f));
     add(1);
     if (next.every(Boolean)) {
       add(5, t('game.tips.full'));
-      const nb = SIZES[Math.floor(Math.random() * 3)].id;
-      setBox(nb);
-      setFilled(Array(ROWS * COLS).fill(false));
-      setTray([...rest, newTip(nb)]);
-    } else {
-      setFilled(next);
-      setTray([...rest, newTip(box)]);
-    }
-    setSelected(null);
+      setBoxes({ ...boxes, [box]: Array(HOLES).fill(false) });
+    } else setBoxes({ ...boxes, [box]: next });
   };
 
   const onDown = (e: React.PointerEvent, id: number) => {
@@ -109,31 +101,37 @@ export function TipsGame({ onFinish }: { onFinish: (score: number) => void }) {
   };
   const onUp = (e: React.PointerEvent) => {
     if (!drag) return;
-    const el = document.elementsFromPoint(e.clientX, e.clientY).find((x) => (x as HTMLElement).dataset?.hole);
-    if (el) place(drag.id, Number((el as HTMLElement).dataset.hole));
+    const el = document.elementsFromPoint(e.clientX, e.clientY).find((x) => (x as HTMLElement).dataset?.hole) as HTMLElement | undefined;
+    if (el) {
+      const [box, hole] = el.dataset.hole!.split(':');
+      place(drag.id, box as Size, Number(hole));
+    }
     setDrag(null);
   };
 
-  const d = def(box);
   return (
     <div className="game" onPointerMove={onMove} onPointerUp={onUp}>
       <div className="game-hud">
         <span>⭐ {score}</span>
         <span>⏱️ {left}s</span>
       </div>
-      <div className="tip-box" style={{ borderColor: d.box }}>
-        <div className="tip-box-label" style={{ background: d.box }}>
-          {d.label}
-        </div>
-        <div className="tip-holes" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
-          {filled.map((f, i) => (
-            <button key={i} data-hole={i} className={`hole ${f ? 'full' : ''}`} onClick={() => selected !== null && place(selected, i)}>
-              {f && <TipIcon size={box} />}
-            </button>
-          ))}
-        </div>
+      <div className="tip-boxes">
+        {SIZES.map((d) => (
+          <div key={d.id} className="tip-box" style={{ borderColor: d.box }}>
+            <div className="tip-box-label" style={{ background: d.box }}>
+              {d.label}
+            </div>
+            <div className="tip-holes" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
+              {boxes[d.id].map((f, i) => (
+                <button key={i} data-hole={`${d.id}:${i}`} className={`hole ${f ? 'full' : ''}`} onClick={() => selected !== null && place(selected, d.id, i)}>
+                  {f && <TipIcon size={d.id} />}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
-      {flash && <div className="tip-flash">{flash}</div>}
+      <div className="tip-flash">{flash ?? ' '}</div>
       <div className="tip-tray">
         {tray.map((tip) => (
           <div
