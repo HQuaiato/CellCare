@@ -279,10 +279,15 @@ function drawLive(g: G, cells: Cell[], morph: Morph, flask: Flask, t: number, ov
     // no live-cell o ciclo avança: os núcleos FUCCI mudam de cor com o tempo
     const phase = (c.phase + t * 0.03) % 1;
     if (has('LUC')) {
-      g.beginPath();
-      g.arc(x, y, c.len, 0, Math.PI * 2);
-      g.fillStyle = 'rgba(253,224,71,0.18)';
+      // a luciferase preenche o citoplasma: segue o contorno de cada célula
+      g.save();
+      g.translate(x, y);
+      g.rotate(c.rot + 0.1 * Math.sin(t * 0.4 + i));
+      if (c.procs.length) drawProcesses(g, c, 'rgba(253,224,71,0.45)');
+      shape(g, c, morph);
+      g.fillStyle = 'rgba(253,224,71,0.32)';
       g.fill();
+      g.restore();
     }
     if (has('LC3')) {
       g.fillStyle = '#4ade80';

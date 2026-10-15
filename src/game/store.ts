@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { tm } from '../i18n';
 import { GameError } from './actions';
-import { INFINITE_MONEY, OFFLINE_CAP_H, diff } from './data';
+import { INFINITE_MONEY, LEVELS, OFFLINE_CAP_H, SHOP, diff } from './data';
 import { log } from './econ';
 import { checkLessons } from './lessons';
 import { migrate, newGame } from './newgame';
@@ -78,6 +78,16 @@ export function useGame(): GameState {
   return useSyncExternalStore(subscribe, () => state!);
 }
 
+export const CREATIVE_STOCK = 9999;
+
+/** Modo criativo: dinheiro e estoque infinitos e todos os níveis liberados. */
+function applyCreative(s: GameState) {
+  if (!diff(s).infinite) return;
+  s.money = INFINITE_MONEY;
+  s.xp = Math.max(s.xp, LEVELS[LEVELS.length - 1]);
+  for (const item of SHOP) if (item.inv) s.inventory[item.inv] = CREATIVE_STOCK;
+}
+
 function persist() {
   if (state) backend.save(state.player, state);
 }
@@ -88,7 +98,7 @@ export function act(fn: (s: GameState) => Msg | void, quiet = false): boolean {
   const draft = structuredClone(state);
   try {
     const msg = fn(draft);
-    if (diff(draft).infinite) draft.money = INFINITE_MONEY;
+    applyCreative(draft);
     checkLessons(draft);
     state = draft;
     toastNewLogs();
@@ -112,7 +122,7 @@ function tick() {
   const draft = structuredClone(state);
   draft.lastReal = now;
   if (hours > 0) advance(draft, hours);
-  if (diff(draft).infinite) draft.money = INFINITE_MONEY;
+  applyCreative(draft);
   checkLessons(draft);
   state = draft;
   toastNewLogs();
