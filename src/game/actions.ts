@@ -1,7 +1,8 @@
 import { AGENTS, ASSAYS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, MIX_VOLUME, PASSES, SCOPES, SHOP, diff, gameLevelMult, gameMult, hasScope, isAssay, levelOf, HIGH_PASSAGE, type PassId } from './data';
 import { VIAL_PREMIUM, addXp, bump, log, m, sellCells } from './econ';
 import { QUESTS } from './quests';
-import { expKey, paperBlock, publishPaper } from './research';
+import { applyGrant, grantBlock } from './grants';
+import { expKey, paperBlock, publishPaper, venues } from './research';
 import { advance, capacity, confluence, eqPH, flaskName, isMyco, viability } from './sim';
 import type { AgentId, ContamType, Difficulty, Flask, FlaskType, GameId, GameState, LineId, MarkerId, MediumId, Msg, Readout } from './types';
 
@@ -703,9 +704,20 @@ export function mixMedium(s: GameState, medium: MediumId, accuracy: number): Msg
 
 // ---------------------------------------------------------------- publicação
 
-export function publish(s: GameState, keys: string[]): Msg {
+export function publish(s: GameState, keys: string[], journal?: number): Msg {
   const block = paperBlock(s, keys);
   if (block) throw new GameError(block);
-  const p = publishPaper(s, keys);
-  return m('ok.published', { journal: `@journal.${p.journal}`, reward: p.reward });
+  const opts = venues(s, keys);
+  const v = opts.find((x) => x.journal === journal) ?? opts[0];
+  if (s.money < v.fee) fail('err.noApc', { fee: v.fee });
+  const p = publishPaper(s, keys, v);
+  return v.fee > 0 ? m('ok.publishedPaid', { journal: `@journal.${p.journal}`, fee: v.fee }) : m('ok.published', { journal: `@journal.${p.journal}`, reward: v.reward });
+}
+
+export function submitGrant(s: GameState, callId: string): Msg {
+  const block = grantBlock(s, callId);
+  if (block) throw new GameError(block);
+  applyGrant(s, callId);
+  bump(s, 'grants');
+  return m('ok.grantSubmitted');
 }

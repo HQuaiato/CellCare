@@ -16,7 +16,7 @@ export function HUD() {
           🧫 <b>CellCare</b> {s.difficulty !== 'normal' && <span title={t(`difficulty.${s.difficulty}`)}>{difficultyIcon(s.difficulty)}</span>}
         </div>
         <div className="money" title={t('ui.currencyName')}>
-          {fmtMoney(s.money)}
+          {s.difficulty === 'creative' ? '◈ ∞' : fmtMoney(s.money)}
         </div>
       </div>
       <div className="hud-row">

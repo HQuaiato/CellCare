@@ -3,12 +3,13 @@ import type { Difficulty } from '../game/types';
 import { t } from '../i18n';
 import { Info } from './ui';
 
-const ICON: Record<Difficulty, string> = { easy: '🌱', normal: '🧪', hard: '🔥', expert: '☠️' };
+const ICON: Record<Difficulty, string> = { creative: '🎨', easy: '🌱', normal: '🧪', hard: '🔥', expert: '☠️', realistic: '🎓' };
 
 /** Texto do ⓘ com o que muda em cada dificuldade. */
 export function difficultyInfo() {
   return DIFFICULTY_ORDER.map((d) => {
     const x = DIFFICULTIES[d];
+    if (x.infinite || x.realistic) return `${ICON[d]} ${t(`difficulty.${d}`)}: ${t(`difficulty.${d}.desc`)}`;
     return `${ICON[d]} ${t(`difficulty.${d}`)}: ${t('difficulty.detail', {
       contam: `×${x.contam}`,
       price: `${Math.round(x.price * 100)}%`,

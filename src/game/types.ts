@@ -53,7 +53,27 @@ export type ScopeMode = 'phase' | 'fluo' | 'timelapse' | 'livecell' | 'superres'
 export type Tissue = 'mouse' | 'cervix' | 'kidney' | 'lung' | 'breast' | 'bone' | 'skin' | 'brain' | 'blood' | 'vessel' | 'pluripotent';
 export type LineKind = 'tumor' | 'normal' | 'transformed' | 'stem';
 export type GameId = 'drop' | 'whack' | 'memory' | 'count' | 'tips' | 'pipette' | 'label' | 'centrifuge' | 'mix';
-export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
+export type Difficulty = 'creative' | 'easy' | 'normal' | 'hard' | 'expert' | 'realistic';
+export type GrantTier = 'small' | 'medium' | 'large';
+
+/** Edital aberto (modo realista). */
+export interface GrantCall {
+  id: string;
+  tier: GrantTier;
+  /** valor máximo do edital */
+  max: number;
+  closesAt: number;
+}
+
+/** Projeto submetido aguardando resultado. */
+export interface GrantApp {
+  id: string;
+  tier: GrantTier;
+  chance: number;
+  amount: number;
+  appliedAt: number;
+  resultAt: number;
+}
 
 export type Mood =
   | 'happy'
@@ -217,6 +237,7 @@ export interface GameState {
   replicates: Record<string, number>;
   papers: Paper[];
   labResults?: LabResult[];
+  grants?: { calls: GrantCall[]; refreshAt: number; apps: GrantApp[]; won: number; lost: number };
   demand: Record<string, number>;
   inventory: Record<string, number>;
   /** scope = índice do melhor microscópio em SCOPES */

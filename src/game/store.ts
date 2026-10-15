@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { tm } from '../i18n';
 import { GameError } from './actions';
-import { OFFLINE_CAP_H } from './data';
+import { INFINITE_MONEY, OFFLINE_CAP_H, diff } from './data';
 import { log } from './econ';
 import { checkLessons } from './lessons';
 import { migrate, newGame } from './newgame';
@@ -88,6 +88,7 @@ export function act(fn: (s: GameState) => Msg | void, quiet = false): boolean {
   const draft = structuredClone(state);
   try {
     const msg = fn(draft);
+    if (diff(draft).infinite) draft.money = INFINITE_MONEY;
     checkLessons(draft);
     state = draft;
     toastNewLogs();
@@ -111,6 +112,7 @@ function tick() {
   const draft = structuredClone(state);
   draft.lastReal = now;
   if (hours > 0) advance(draft, hours);
+  if (diff(draft).infinite) draft.money = INFINITE_MONEY;
   checkLessons(draft);
   state = draft;
   toastNewLogs();

@@ -32,6 +32,7 @@ export const LESSONS: Lesson[] = [
   { id: 'transduction', icon: '🧬', when: (s) => levelOf(s.xp) >= 2 },
   { id: 'markers', icon: '✨', when: (s) => anyFlask(s, (f) => f.markers.length > 0) },
   { id: 'experiment', icon: '🧪', when: (s) => (s.stats.experiments ?? 0) > 0 },
+  { id: 'realistic', icon: '🎓', when: (s) => s.difficulty === 'realistic' },
   { id: 'datasets', icon: '📚', when: (s) => availableDatasets(s).length > 0 },
   { id: 'paper', icon: '📄', when: (s) => (s.stats.papers ?? 0) > 0 },
   { id: 'cytometry', icon: '📊', when: (s) => !!s.equipment.cytometer },

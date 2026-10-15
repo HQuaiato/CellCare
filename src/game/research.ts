@@ -1,4 +1,4 @@
-import { ASSAYS, JOURNAL_MIN, LINES, MARKERS, SCOPES, finding, isAssay } from './data';
+import { ASSAYS, JOURNAL_APC, JOURNAL_MIN, LINES, MARKERS, OA_JOURNALS, SCOPES, diff, finding, isAssay } from './data';
 import { addXp, bump, log, m } from './econ';
 import type { AgentId, Experiment, GameState, LabResult, LineId, Msg, Paper, Readout } from './types';
 
@@ -121,16 +121,45 @@ export function paperBlock(s: GameState, keys: string[]): Msg | null {
   return null;
 }
 
-export function publishPaper(s: GameState, keys: string[]): Paper {
+export interface Venue {
+  journal: number;
+  /** impacto efetivo nessa revista (revistas menores e de acesso aberto limitam o impacto) */
+  impact: number;
+  /** taxa de publicação (APC), só no modo realista */
+  fee: number;
+  /** financiamento recebido ao publicar (zero no modo realista) */
+  reward: number;
+  oa: boolean;
+}
+
+/**
+ * Onde dá para publicar. Fora do modo realista: só a melhor revista, sem taxa e com financiamento.
+ * No realista: a melhor revista ou qualquer uma abaixo (mais barata, impacto limitado ao teto dela)
+ * e as de acesso aberto (impacto máximo 15).
+ */
+export function venues(s: GameState, keys: string[]): Venue[] {
+  const ib = paperImpact(s, keys);
+  if (!diff(s).realistic) return [{ journal: ib.journal, impact: ib.impact, fee: 0, reward: ib.reward, oa: false }];
+  const out: Venue[] = [];
+  for (let j = ib.journal; j < JOURNAL_MIN.length; j++) {
+    const cap = j === 0 ? Infinity : JOURNAL_MIN[j - 1] * 0.99;
+    out.push({ journal: j, impact: Math.min(ib.impact, cap), fee: Math.round(JOURNAL_APC[j] * diff(s).price), reward: 0, oa: false });
+  }
+  for (const o of OA_JOURNALS) out.push({ journal: o.journal, impact: Math.min(ib.impact, o.cap), fee: Math.round(o.fee * diff(s).price), reward: 0, oa: true });
+  return out;
+}
+
+export function publishPaper(s: GameState, keys: string[], v: Venue): Paper {
   const ib = paperImpact(s, keys);
   const id = Math.random().toString(36).slice(2, 10);
-  const paper: Paper = { id, keys: [...keys], agent: parseKey(keys[0]).agent, journal: ib.journal, impact: ib.impact, reward: ib.reward, at: s.time };
+  const paper: Paper = { id, keys: [...keys], agent: parseKey(keys[0]).agent, journal: v.journal, impact: v.impact, reward: v.reward - v.fee, at: s.time };
   s.papers.unshift(paper);
   s.published = { ...(s.published ?? {}), ...Object.fromEntries(keys.map((k) => [k, id])) };
-  s.money += ib.reward;
+  s.money += v.reward - v.fee;
   bump(s, 'papers');
-  addXp(s, ib.xp);
-  log(s, 'log.paper', { journal: `@journal.${ib.journal}`, reward: ib.reward }, 'good');
+  addXp(s, Math.round(ib.xp * (ib.impact > 0 ? v.impact / ib.impact : 1)));
+  if (v.fee > 0) log(s, 'log.paperPaid', { journal: `@journal.${v.journal}`, fee: v.fee }, 'good');
+  else log(s, 'log.paper', { journal: `@journal.${v.journal}`, reward: v.reward }, 'good');
   return paper;
 }
 

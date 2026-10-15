@@ -259,6 +259,23 @@ export function finding(agent: AgentId, readout: Readout, line: LineId, partner?
 /** Revistas (fictícias), da maior para a menor exigência de impacto. */
 export const JOURNAL_MIN = [3, 2, 1.1, 0.8, 0.5, 0];
 
+/** Modo realista: taxa de publicação (APC) por revista, da mais exigente para a menos. */
+export const JOURNAL_APC = [9000, 6000, 3500, 2000, 1000, 400];
+/** Revistas de acesso aberto: baratas ou gratuitas, mas com impacto limitado (máximo 15). */
+export const OA_JOURNALS = [
+  { journal: 6, cap: 0.8, fee: 0 },
+  { journal: 7, cap: 1.5, fee: 300 },
+];
+
+/** Editais (modo realista): chance-base baixa e valor máximo de ~1 equipamento no edital grande. */
+export const GRANT_TIERS: Record<'small' | 'medium' | 'large', { chance: number; max: number; review: number }> = {
+  small: { chance: 0.15, max: 3000, review: 96 },
+  medium: { chance: 0.08, max: 9000, review: 144 },
+  large: { chance: 0.03, max: 25000, review: 240 },
+};
+export const GRANT_REFRESH_H = 24 * 7;
+export const MAX_PENDING_GRANTS = 2;
+
 // ---------------------------------------------------------------- contaminação
 
 export const CONTAM: Record<ContamType, { level: number; growth: number; growthProtected: number }> = {
@@ -387,7 +404,13 @@ export const GAMES: { id: GameId; icon: string; rate: number; cap: number }[] = 
 
 // ---------------------------------------------------------------- dificuldade
 
+export const INFINITE_MONEY = 1e9;
+
 export interface DifficultyDef {
+  /** criativo: dinheiro infinito */
+  infinite?: boolean;
+  /** realista: publicar custa APC, artigos não pagam e o dinheiro vem de editais */
+  realistic?: boolean;
   /** risco de contaminação */
   contam: number;
   /** preços da loja */
@@ -403,12 +426,14 @@ export interface DifficultyDef {
 }
 
 export const DIFFICULTIES: Record<Difficulty, DifficultyDef> = {
+  creative: { infinite: true, contam: 0.5, price: 1, sell: 1, death: 0.8, stipend: 1, games: 1, xp: 1, startMoney: INFINITE_MONEY },
   easy: { contam: 0.5, price: 0.8, sell: 1.15, death: 0.8, stipend: 1.5, games: 1.2, xp: 1, startMoney: 400 },
   normal: { contam: 1, price: 1, sell: 1, death: 1, stipend: 1, games: 1, xp: 1, startMoney: 250 },
   hard: { contam: 2, price: 1.35, sell: 0.9, death: 1.2, stipend: 0.6, games: 0.9, xp: 1.25, startMoney: 180 },
   expert: { contam: 3.5, price: 1.75, sell: 0.8, death: 1.4, stipend: 0.3, games: 0.8, xp: 1.5, startMoney: 120 },
+  realistic: { realistic: true, contam: 2, price: 1.4, sell: 0.6, death: 1.2, stipend: 0.4, games: 0.6, xp: 1.5, startMoney: 400 },
 };
-export const DIFFICULTY_ORDER = Object.keys(DIFFICULTIES) as Difficulty[];
+export const DIFFICULTY_ORDER: Difficulty[] = ['creative', 'easy', 'normal', 'hard', 'expert', 'realistic'];
 export const diff = (s: { difficulty?: Difficulty }) => DIFFICULTIES[s.difficulty ?? 'normal'];
 
 /** Receita do meio completo feito na bancada (porcentagens de 500 mL). */

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Info, fmtClock, fmtDuration, fmtMoney, fmtNum } from '../components/ui';
-import { publish } from '../game/actions';
-import { LEVELS, LINES, finding, levelOf, unlocksAt } from '../game/data';
+import { publish, submitGrant } from '../game/actions';
+import { grantAmount, grantBlock, grantChance, relevance } from '../game/grants';
+import { GRANT_TIERS, LEVELS, LINES, diff, finding, levelOf, unlocksAt } from '../game/data';
 import {
   MAX_DATASETS,
   REPLICATES_FOR_PAPER,
@@ -14,6 +15,7 @@ import {
   parseKey,
   readoutName,
   totalCitations,
+  venues,
 } from '../game/research';
 import { act, useGame } from '../game/store';
 import type { GameState, LabResult, Paper, Readout } from '../game/types';
@@ -93,10 +95,14 @@ function PaperItem({ p, s }: { p: Paper; s: GameState }) {
 /** Montagem de artigo: escolha conjuntos de dados do mesmo tratamento. */
 function Composer({ s }: { s: GameState }) {
   const [sel, setSel] = useState<string[]>([]);
+  const [journal, setJournal] = useState<number | null>(null);
   const avail = availableDatasets(s);
+  const realistic = !!diff(s).realistic;
   const chosen = sel.filter((k) => avail.includes(k));
   const block = paperBlock(s, chosen);
   const ib = chosen.length ? paperImpact(s, chosen) : null;
+  const opts = chosen.length && !block ? venues(s, chosen) : [];
+  const venue = opts.find((v) => v.journal === journal) ?? opts[0];
   const agentSel = chosen.length ? parseKey(chosen[0]).agent : null;
   const toggle = (k: string) => setSel((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev.filter((x) => avail.includes(x)), k]));
 
@@ -129,21 +135,86 @@ function Composer({ s }: { s: GameState }) {
             {ib.sameTumor && <span className="badge-pill">🎯 {t('res.sameTumor')}</span>}
             {ib.tumorVsNormal && <span className="badge-pill">⚖️ {t('res.tumorVsNormal')}</span>}
           </div>
-          <p className="small">
-            {t('res.preview', { journal: `@journal.${ib.journal}`, i: fmtNum(ib.impact * 10), reward: fmtMoney(ib.reward) })}
-          </p>
+          {realistic && venue ? (
+            <>
+              <h4>
+                {t('res.venue')} <Info k="res.venueInfo" title={t('res.venue')} />
+              </h4>
+              <div className="venues">
+                {opts.map((v) => (
+                  <button key={v.journal} className={`venue ${venue.journal === v.journal ? 'on' : ''}`} onClick={() => setJournal(v.journal)}>
+                    <b>
+                      {v.oa && '🔓 '}
+                      {t(`journal.${v.journal}`)}
+                    </b>
+                    <small>
+                      {t('res.impact', { i: fmtNum(v.impact * 10) })} · {v.fee > 0 ? t('res.apc', { fee: fmtMoney(v.fee) }) : t('res.free')}
+                    </small>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="small">{t('res.preview', { journal: `@journal.${ib.journal}`, i: fmtNum(ib.impact * 10), reward: fmtMoney(ib.reward) })}</p>
+          )}
           {block && <p className="hint bad">{tm(block)}</p>}
           <button
             className="btn primary block"
-            disabled={!!block}
+            disabled={!!block || (realistic && !!venue && s.money < venue.fee)}
             onClick={() => {
-              if (act((st) => publish(st, chosen), true)) setSel([]);
+              if (act((st) => publish(st, chosen, venue?.journal), true)) {
+                setSel([]);
+                setJournal(null);
+              }
             }}
           >
             📤 {t('res.submit')}
           </button>
         </div>
       )}
+    </section>
+  );
+}
+
+/** Editais de projeto (modo realista). */
+function GrantsPanel({ s }: { s: GameState }) {
+  const g = s.grants;
+  return (
+    <section className="card span-2">
+      <h3>
+        💼 {t('grant.title')} <Info k="grant.info" title={t('grant.title')} />
+      </h3>
+      <p className="small muted">
+        {t('grant.relevance', { r: fmtNum(relevance(s)) })} · {t('grant.record', { w: g?.won ?? 0, l: g?.lost ?? 0 })}
+      </p>
+      <div className="grant-list">
+        {(g?.calls ?? []).map((c) => {
+          const block = grantBlock(s, c.id);
+          return (
+            <div key={c.id} className={`grant grant-${c.tier}`}>
+              <div className="grow">
+                <b>{t(`grant.${c.tier}`)}</b>
+                <small>
+                  {t('grant.callInfo', { max: fmtMoney(c.max), ask: fmtMoney(grantAmount(s, c.max)), chance: Math.round(grantChance(s, c.tier) * 100), days: Math.round(GRANT_TIERS[c.tier].review / 24) })}
+                </small>
+              </div>
+              <button className="btn small primary" disabled={!!block} title={block ? tm(block) : ''} onClick={() => act((st) => submitGrant(st, c.id))}>
+                {t('grant.submit')}
+              </button>
+            </div>
+          );
+        })}
+        {(g?.calls ?? []).length === 0 && <p className="muted small">{t('grant.noCalls', { d: fmtDuration(Math.max(0, (g?.refreshAt ?? 0) - s.time)) })}</p>}
+      </div>
+      {(g?.apps ?? []).length > 0 && <h4>{t('grant.pending')}</h4>}
+      {(g?.apps ?? []).map((a) => (
+        <div key={a.id} className="project row between">
+          <span className="small">
+            {t(`grant.${a.tier}`)} · {fmtMoney(a.amount)} · {Math.round(a.chance * 100)}%
+          </span>
+          <span className="pill">{fmtDuration(a.resultAt - s.time)}</span>
+        </div>
+      ))}
     </section>
   );
 }
@@ -174,6 +245,7 @@ export function ResearchTab() {
         <Info k="res.hInfo" title={t('res.hIndex')} />
       </section>
 
+      {diff(s).realistic && <GrantsPanel s={s} />}
       <Composer s={s} />
 
       <section className="card">

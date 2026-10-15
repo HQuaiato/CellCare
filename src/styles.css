@@ -2038,3 +2038,54 @@ p.bullet {
   border-radius: 10px;
   padding: 4px 0;
 }
+
+/* ---------------------------------------------------------------- v0.9: modos criativo/realista, APC e editais */
+
+.diff-picker .seg {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.venues,
+.grant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.venue {
+  border: 2px solid var(--line);
+  background: #fff;
+  border-radius: 12px;
+  padding: 8px 10px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.venue.on {
+  border-color: var(--primary);
+  background: var(--soft2);
+}
+.venue small,
+.grant small {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.grant {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: var(--soft2);
+  border-left: 5px solid #94a3b8;
+}
+.grant-medium {
+  border-left-color: #2563eb;
+}
+.grant-large {
+  border-left-color: #f5b82e;
+}
+.grant .grow {
+  display: flex;
+  flex-direction: column;
+}

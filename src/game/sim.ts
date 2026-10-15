@@ -1,5 +1,6 @@
 import { CONTAM, FLASKS, LINES, MEDIA, STIPEND, SUSPENSION_MAX_DENSITY, diff, hasScope, levelOf } from './data';
 import { log } from './econ';
+import { tickGrants } from './grants';
 import { hIndex, resolveExperiment } from './research';
 import type { Flask, GameState, MediumId, Mood } from './types';
 
@@ -259,6 +260,8 @@ export function advance(s: GameState, hours: number) {
       for (const e of ready) resolveExperiment(s, e);
     }
   }
+
+  tickGrants(s);
 
   for (const f of s.flasks) {
     const md = flaskMood(f);
