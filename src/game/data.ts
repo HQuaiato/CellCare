@@ -1,4 +1,4 @@
-import type { AgentId, AssayId, ContamType, Difficulty, FlaskType, GameId, LineId, MarkerId, MediumId, Morph, Readout, ScopeMode } from './types';
+import type { AgentId, AssayId, ContamType, Difficulty, FlaskType, GameId, LineId, LineKind, MarkerId, MediumId, Morph, Readout, ScopeMode, Tissue } from './types';
 
 /** 1 minuto real = 1 hora de jogo. Um dia no lab dura 24 minutos. */
 export const OFFLINE_CAP_H = 12;
@@ -67,25 +67,28 @@ export interface LineDef {
   /** morfologia: define o desenho da célula e a imagem no microscópio */
   morph: Morph;
   badge: string;
+  /** tecido de origem e tipo (tumoral, normal...) — usados para a robustez dos artigos */
+  tissue: Tissue;
+  kind: LineKind;
 }
 
 export const LINES: Record<LineId, LineDef> = {
-  L929: { name: 'L929', medium: 'MEM', td: 25, tdRange: '21–32 h', suspension: false, size: 1.2, glcRate: 0.45, price: 6, hue: 95, level: 1, sens: 0.5, p53: 'wt', startPassage: 10, morph: 'spindle', badge: '🐭' },
-  HeLa: { name: 'HeLa', medium: 'DMEM', td: 31, tdRange: '30–48 h', suspension: false, size: 1, glcRate: 0.6, price: 15, hue: 330, level: 1, sens: 0.7, p53: 'inactive', startPassage: 5, morph: 'polygonal', badge: '👑' },
-  HEK293T: { name: 'HEK293T', medium: 'DMEM', td: 27, tdRange: '24–30 h', suspension: false, size: 1.4, glcRate: 0.55, price: 20, hue: 200, level: 2, sens: 1.1, p53: 'inactive', startPassage: 5, morph: 'cobblestone', badge: '🏭' },
-  A549: { name: 'A549', medium: 'F12K', td: 24, tdRange: '18–40 h', suspension: false, size: 1, glcRate: 0.6, price: 22, hue: 140, level: 2, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🫁' },
-  MCF7: { name: 'MCF-7', medium: 'MEM', td: 33, tdRange: '24–80 h', suspension: false, size: 1.2, glcRate: 0.4, price: 30, hue: 280, level: 3, sens: 1, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🎗️' },
-  U2OS: { name: 'U2OS', medium: 'MCCOY', td: 30, tdRange: '25–36 h', suspension: false, size: 0.7, glcRate: 0.5, price: 28, hue: 30, level: 3, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'flat', badge: '🦴' },
-  MDA231: { name: 'MDA-MB-231', medium: 'DMEM', td: 36, tdRange: '25–42 h', suspension: false, size: 0.9, glcRate: 0.65, price: 34, hue: 300, level: 4, sens: 0.8, p53: 'inactive', startPassage: 5, morph: 'spindle', badge: '🎗️' },
-  A375: { name: 'A375', medium: 'DMEM', td: 27, tdRange: '20–34 h', suspension: false, size: 1, glcRate: 0.55, price: 34, hue: 10, level: 4, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'star', badge: '🌑' },
-  U87: { name: 'U87 MG', medium: 'MEM', td: 36, tdRange: '34–39 h', suspension: false, size: 0.7, glcRate: 0.5, price: 38, hue: 250, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠' },
-  A172: { name: 'A172', medium: 'DMEM', td: 42, tdRange: '26–48 h', suspension: false, size: 0.8, glcRate: 0.45, price: 38, hue: 225, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠' },
-  Jurkat: { name: 'Jurkat', medium: 'RPMI', td: 27, tdRange: '25–35 h', suspension: true, size: 1, glcRate: 0.35, price: 40, hue: 50, level: 6, sens: 1, p53: 'inactive', startPassage: 5, morph: 'round', badge: '🩸' },
-  MRC5: { name: 'MRC-5', medium: 'MEM', td: 38, tdRange: '34–45 h', suspension: false, size: 0.45, glcRate: 0.4, price: 60, hue: 40, level: 7, sens: 1.1, p53: 'wt', maxPassage: 28, startPassage: 12, morph: 'spindle', badge: '💉' },
-  IMR90: { name: 'IMR-90', medium: 'MEM', td: 36, tdRange: '30–48 h', suspension: false, size: 0.45, glcRate: 0.4, price: 65, hue: 65, level: 7, sens: 1.1, p53: 'wt', maxPassage: 26, startPassage: 10, morph: 'spindle', badge: '⏳' },
-  HDF: { name: 'HDF', medium: 'DMEM', td: 40, tdRange: '30–48 h', suspension: false, size: 0.4, glcRate: 0.45, price: 75, hue: 15, level: 8, sens: 1.2, p53: 'wt', maxPassage: 18, startPassage: 5, morph: 'spindle', badge: '✋' },
-  HUVEC: { name: 'HUVEC', medium: 'EGM2', td: 36, tdRange: '30–50 h', suspension: false, size: 0.6, glcRate: 0.5, price: 120, hue: 355, level: 9, sens: 1.5, p53: 'wt', maxPassage: 9, startPassage: 2, morph: 'cobblestone', badge: '🫀' },
-  iPSC: { name: 'iPSC', medium: 'MTESR', td: 24, tdRange: '16–36 h', suspension: false, size: 1.6, glcRate: 0.7, price: 220, hue: 170, level: 10, sens: 2, p53: 'wt', startPassage: 25, morph: 'colony', badge: '🌱' },
+  L929: { name: 'L929', medium: 'MEM', td: 25, tdRange: '21–32 h', suspension: false, size: 1.2, glcRate: 0.45, price: 6, hue: 95, level: 1, sens: 0.5, p53: 'wt', startPassage: 10, morph: 'spindle', badge: '🐭', tissue: 'mouse', kind: 'transformed' },
+  HeLa: { name: 'HeLa', medium: 'DMEM', td: 31, tdRange: '30–48 h', suspension: false, size: 1, glcRate: 0.6, price: 15, hue: 330, level: 1, sens: 0.7, p53: 'inactive', startPassage: 5, morph: 'polygonal', badge: '👑', tissue: 'cervix', kind: 'tumor' },
+  HEK293T: { name: 'HEK293T', medium: 'DMEM', td: 27, tdRange: '24–30 h', suspension: false, size: 1.4, glcRate: 0.55, price: 20, hue: 200, level: 2, sens: 1.1, p53: 'inactive', startPassage: 5, morph: 'cobblestone', badge: '🏭', tissue: 'kidney', kind: 'transformed' },
+  A549: { name: 'A549', medium: 'F12K', td: 24, tdRange: '18–40 h', suspension: false, size: 1, glcRate: 0.6, price: 22, hue: 140, level: 2, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🫁', tissue: 'lung', kind: 'tumor' },
+  MCF7: { name: 'MCF-7', medium: 'MEM', td: 33, tdRange: '24–80 h', suspension: false, size: 1.2, glcRate: 0.4, price: 30, hue: 280, level: 3, sens: 1, p53: 'wt', startPassage: 5, morph: 'cobblestone', badge: '🎗️', tissue: 'breast', kind: 'tumor' },
+  U2OS: { name: 'U2OS', medium: 'MCCOY', td: 30, tdRange: '25–36 h', suspension: false, size: 0.7, glcRate: 0.5, price: 28, hue: 30, level: 3, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'flat', badge: '🦴', tissue: 'bone', kind: 'tumor' },
+  MDA231: { name: 'MDA-MB-231', medium: 'DMEM', td: 36, tdRange: '25–42 h', suspension: false, size: 0.9, glcRate: 0.65, price: 34, hue: 300, level: 4, sens: 0.8, p53: 'inactive', startPassage: 5, morph: 'spindle', badge: '🎗️', tissue: 'breast', kind: 'tumor' },
+  A375: { name: 'A375', medium: 'DMEM', td: 27, tdRange: '20–34 h', suspension: false, size: 1, glcRate: 0.55, price: 34, hue: 10, level: 4, sens: 0.8, p53: 'wt', startPassage: 5, morph: 'star', badge: '🌑', tissue: 'skin', kind: 'tumor' },
+  U87: { name: 'U87 MG', medium: 'MEM', td: 36, tdRange: '34–39 h', suspension: false, size: 0.7, glcRate: 0.5, price: 38, hue: 250, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠', tissue: 'brain', kind: 'tumor' },
+  A172: { name: 'A172', medium: 'DMEM', td: 42, tdRange: '26–48 h', suspension: false, size: 0.8, glcRate: 0.45, price: 38, hue: 225, level: 5, sens: 0.9, p53: 'wt', startPassage: 5, morph: 'star', badge: '🧠', tissue: 'brain', kind: 'tumor' },
+  Jurkat: { name: 'Jurkat', medium: 'RPMI', td: 27, tdRange: '25–35 h', suspension: true, size: 1, glcRate: 0.35, price: 40, hue: 50, level: 6, sens: 1, p53: 'inactive', startPassage: 5, morph: 'round', badge: '🩸', tissue: 'blood', kind: 'tumor' },
+  MRC5: { name: 'MRC-5', medium: 'MEM', td: 38, tdRange: '34–45 h', suspension: false, size: 0.45, glcRate: 0.4, price: 60, hue: 40, level: 7, sens: 1.1, p53: 'wt', maxPassage: 28, startPassage: 12, morph: 'spindle', badge: '💉', tissue: 'lung', kind: 'normal' },
+  IMR90: { name: 'IMR-90', medium: 'MEM', td: 36, tdRange: '30–48 h', suspension: false, size: 0.45, glcRate: 0.4, price: 65, hue: 65, level: 7, sens: 1.1, p53: 'wt', maxPassage: 26, startPassage: 10, morph: 'spindle', badge: '⏳', tissue: 'lung', kind: 'normal' },
+  HDF: { name: 'HDF', medium: 'DMEM', td: 40, tdRange: '30–48 h', suspension: false, size: 0.4, glcRate: 0.45, price: 75, hue: 15, level: 8, sens: 1.2, p53: 'wt', maxPassage: 18, startPassage: 5, morph: 'spindle', badge: '✋', tissue: 'skin', kind: 'normal' },
+  HUVEC: { name: 'HUVEC', medium: 'EGM2', td: 36, tdRange: '30–50 h', suspension: false, size: 0.6, glcRate: 0.5, price: 120, hue: 355, level: 9, sens: 1.5, p53: 'wt', maxPassage: 9, startPassage: 2, morph: 'cobblestone', badge: '🫀', tissue: 'vessel', kind: 'normal' },
+  iPSC: { name: 'iPSC', medium: 'MTESR', td: 24, tdRange: '16–36 h', suspension: false, size: 1.6, glcRate: 0.7, price: 220, hue: 170, level: 10, sens: 2, p53: 'wt', startPassage: 25, morph: 'colony', badge: '🌱', tissue: 'pluripotent', kind: 'stem' },
 };
 export const LINE_ORDER = Object.keys(LINES) as LineId[];
 
@@ -115,6 +118,8 @@ export interface AgentDef {
   doses: number;
   level: number;
   needsIrradiator?: boolean;
+  /** senescência replicativa: compara passagem alta × baixa em linhagens normais (sem fármaco) */
+  replicative?: boolean;
 }
 
 export const AGENTS: Record<AgentId, AgentDef> = {
@@ -127,8 +132,11 @@ export const AGENTS: Record<AgentId, AgentDef> = {
   temozolomide: { price: 160, doses: 5, level: 5 },
   rapamycin: { price: 190, doses: 5, level: 5 },
   chloroquine: { price: 100, doses: 5, level: 5 },
+  replicative: { price: 0, doses: 0, level: 7, replicative: true },
 };
 export const AGENT_ORDER = Object.keys(AGENTS) as AgentId[];
+/** fração do limite de Hayflick a partir da qual a cultura conta como "passagem alta" */
+export const HIGH_PASSAGE = 0.75;
 
 const DNA_DAMAGE: AgentId[] = ['cisplatin', 'etoposide', 'doxorubicin', 'radiation', 'temozolomide'];
 
@@ -144,14 +152,20 @@ const FINDING_REL: Record<AgentId, Partial<Record<Readout, number>>> = {
   temozolomide: { MTT: 0.5, '53BP1': 0.85, FUCCI: 0.8, H2B: 0.5, LC3: 0.7, LUC: 0.5 },
   rapamycin: { MTT: 0.3, LC3: 0.9, FUCCI: 0.65, LUC: 0.4 },
   chloroquine: { MTT: 0.3, LC3: 1, H2B: 0.3 },
+  replicative: { MTT: 0.4, '53BP1': 0.8, FUCCI: 0.8, H2B: 0.6, LC3: 0.5, LUC: 0.4 },
 };
 
-// ---------------------------------------------------------------- ensaios (fixados, análise e bancada)
+// ---------------------------------------------------------------- ensaios (fixados, análise, citometria e bancada)
 
 export interface AssayDef {
   /** microscópio mínimo */
   scope?: ScopeMode;
   computer?: boolean;
+  cytometer?: boolean;
+  /** análise computacional de um marcador transduzido */
+  marker?: MarkerId;
+  /** co-cultura: precisa de um segundo frasco de outra linhagem */
+  partner?: boolean;
   needs: Record<string, number>;
   hours: number;
   level: number;
@@ -166,14 +180,22 @@ export const ASSAYS: Record<AssayId, AssayDef> = {
   PHAL: { scope: 'fluo', needs: { PFA: 1, phalloidin: 1 }, hours: 24, level: 2, icon: '🔴', imaging: true, impact: 0.85 },
   NMA: { scope: 'fluo', computer: true, needs: { PFA: 1, DAPI: 1 }, hours: 24, level: 3, icon: '💻', imaging: true, impact: 1.15 },
   MORPH: { scope: 'fluo', computer: true, needs: { PFA: 1, phalloidin: 1 }, hours: 24, level: 3, icon: '📐', imaging: true, impact: 1.15 },
+  DDR: { scope: 'fluo', computer: true, marker: '53BP1', needs: {}, hours: 24, level: 3, icon: '💥', imaging: true, impact: 1.2 },
+  MULTI: { scope: 'fluo', computer: true, needs: { PFA: 1, DAPI: 1, phalloidin: 1 }, hours: 24, level: 4, icon: '🔢', imaging: true, impact: 1.1 },
+  CYCLE: { scope: 'fluo', computer: true, marker: 'FUCCI', needs: {}, hours: 24, level: 4, icon: '🔄', imaging: true, impact: 1.2 },
+  AUTO: { scope: 'fluo', computer: true, marker: 'LC3', needs: {}, hours: 24, level: 5, icon: '🟢', imaging: true, impact: 1.2 },
   SAGAL: { needs: { xgal: 1 }, hours: 96, level: 3, icon: '🟦', impact: 0.95 },
   CLONO: { needs: { crystal: 1 }, hours: 240, level: 4, icon: '🟣', impact: 1 },
   WOUND: { scope: 'timelapse', computer: true, needs: {}, hours: 24, level: 4, icon: '🩹', impact: 1.05 },
+  FLOWCYC: { cytometer: true, needs: { PI: 1 }, hours: 24, level: 5, icon: '📊', impact: 1.1 },
+  APOP: { cytometer: true, needs: { annexin: 1 }, hours: 24, level: 5, icon: '💀', impact: 1.1 },
+  C12: { cytometer: true, needs: { c12fdg: 1 }, hours: 96, level: 6, icon: '🧪', impact: 1.15 },
+  COCULT: { scope: 'fluo', partner: true, needs: {}, hours: 72, level: 6, icon: '🤝', imaging: true, impact: 1.2 },
 };
 export const ASSAY_ORDER = Object.keys(ASSAYS) as AssayId[];
 export const isAssay = (r: Readout): r is AssayId => r in ASSAYS;
 
-type AgentGroup = 'dna' | 'mitotic' | 'replication' | 'autophagy';
+type AgentGroup = 'dna' | 'mitotic' | 'replication' | 'autophagy' | 'senescence';
 const AGENT_GROUP: Record<AgentId, AgentGroup> = {
   cisplatin: 'dna',
   etoposide: 'dna',
@@ -184,19 +206,36 @@ const AGENT_GROUP: Record<AgentId, AgentGroup> = {
   hydroxyurea: 'replication',
   rapamycin: 'autophagy',
   chloroquine: 'autophagy',
+  replicative: 'senescence',
 };
 export type { AgentGroup };
 export const agentGroup = (a: AgentId) => AGENT_GROUP[a];
 
-const ASSAY_REL: Record<AgentGroup, Record<AssayId, number>> = {
-  dna: { DAPI: 0.5, PHAL: 0.4, NMA: 0.9, MORPH: 0.7, SAGAL: 0.9, CLONO: 0.95, WOUND: 0.4 },
-  mitotic: { DAPI: 0.7, PHAL: 0.8, NMA: 1, MORPH: 0.85, SAGAL: 0.5, CLONO: 0.7, WOUND: 0.6 },
-  replication: { DAPI: 0.4, PHAL: 0.3, NMA: 0.6, MORPH: 0.4, SAGAL: 0.6, CLONO: 0.5, WOUND: 0.3 },
-  autophagy: { DAPI: 0.3, PHAL: 0.5, NMA: 0.4, MORPH: 0.6, SAGAL: 0.4, CLONO: 0.4, WOUND: 0.5 },
+type NonCocult = Exclude<AssayId, 'COCULT'>;
+const ASSAY_REL: Record<AgentGroup, Record<NonCocult, number>> = {
+  dna: { DAPI: 0.5, PHAL: 0.4, NMA: 0.9, MORPH: 0.7, DDR: 1, MULTI: 0.6, CYCLE: 0.9, AUTO: 0.5, SAGAL: 0.9, CLONO: 0.95, WOUND: 0.4, FLOWCYC: 0.85, APOP: 0.8, C12: 0.9 },
+  mitotic: { DAPI: 0.7, PHAL: 0.8, NMA: 1, MORPH: 0.85, DDR: 0.5, MULTI: 1, CYCLE: 1, AUTO: 0.4, SAGAL: 0.5, CLONO: 0.7, WOUND: 0.6, FLOWCYC: 0.95, APOP: 0.85, C12: 0.5 },
+  replication: { DAPI: 0.4, PHAL: 0.3, NMA: 0.6, MORPH: 0.4, DDR: 0.7, MULTI: 0.4, CYCLE: 0.9, AUTO: 0.3, SAGAL: 0.6, CLONO: 0.5, WOUND: 0.3, FLOWCYC: 0.9, APOP: 0.4, C12: 0.6 },
+  autophagy: { DAPI: 0.3, PHAL: 0.5, NMA: 0.4, MORPH: 0.6, DDR: 0.2, MULTI: 0.3, CYCLE: 0.6, AUTO: 1, SAGAL: 0.4, CLONO: 0.4, WOUND: 0.5, FLOWCYC: 0.5, APOP: 0.5, C12: 0.4 },
+  senescence: { DAPI: 0.6, PHAL: 0.6, NMA: 0.9, MORPH: 0.85, DDR: 0.8, MULTI: 0.5, CYCLE: 0.8, AUTO: 0.5, SAGAL: 1, CLONO: 0.5, WOUND: 0.4, FLOWCYC: 0.7, APOP: 0.3, C12: 1 },
 };
 
+/** Co-cultura: o tipo do parceiro define o achado. */
+export function partnerType(partner: LineId) {
+  const P = LINES[partner];
+  if (P.kind === 'normal' && P.tissue === 'vessel') return 'endo';
+  if (P.kind === 'normal') return 'fib';
+  if (P.tissue === 'blood') return 'immune';
+  return 'tumor';
+}
+const COCULT_REL: Record<string, number> = { fib: 0.8, endo: 0.85, immune: 0.9, tumor: 0.5 };
+
 /** chave do texto do achado + relevância (0–1) */
-export function finding(agent: AgentId, readout: Readout, line: LineId) {
+export function finding(agent: AgentId, readout: Readout, line: LineId, partner?: LineId) {
+  if (readout === 'COCULT') {
+    const pt = partner ? partnerType(partner) : 'tumor';
+    return { key: `finding.cocult.${pt}`, suffix: null, rel: COCULT_REL[pt] };
+  }
   if (isAssay(readout)) {
     const group = AGENT_GROUP[agent];
     let rel = ASSAY_REL[group][readout];
@@ -217,7 +256,8 @@ export function finding(agent: AgentId, readout: Readout, line: LineId) {
   return { key, suffix, rel };
 }
 
-export const JOURNAL_MIN = [1.1, 0.8, 0.5, 0];
+/** Revistas (fictícias), da maior para a menor exigência de impacto. */
+export const JOURNAL_MIN = [3, 2, 1.1, 0.8, 0.5, 0];
 
 // ---------------------------------------------------------------- contaminação
 
@@ -240,7 +280,7 @@ export interface ShopItem {
   inv?: string;
   qty?: number;
   unit?: 'mL' | 'un' | 'doses' | 'tests' | 'aliquot' | 'courses';
-  special?: 'incubator' | 'irradiator' | 'scope' | 'co2' | 'vial' | 'pass' | 'computer';
+  special?: 'incubator' | 'irradiator' | 'scope' | 'co2' | 'vial' | 'pass' | 'computer' | 'cytometer';
   line?: LineId;
   medium?: MediumId;
   agent?: AgentId;
@@ -259,6 +299,9 @@ export const SHOP: ShopItem[] = [
   { id: 'phalloidin', cat: 'reagents', price: 150, level: 2, inv: 'phalloidin', qty: 10, unit: 'tests' },
   { id: 'xgal', cat: 'reagents', price: 120, level: 3, inv: 'xgal', qty: 5, unit: 'tests' },
   { id: 'crystal', cat: 'reagents', price: 30, level: 4, inv: 'crystal', qty: 10, unit: 'tests' },
+  { id: 'PI', cat: 'reagents', price: 90, level: 5, inv: 'PI', qty: 10, unit: 'tests' },
+  { id: 'annexin', cat: 'reagents', price: 160, level: 5, inv: 'annexin', qty: 10, unit: 'tests' },
+  { id: 'c12fdg', cat: 'reagents', price: 140, level: 6, inv: 'c12fdg', qty: 5, unit: 'tests' },
   { id: 'penstrep', cat: 'protection', price: 25, level: 1, inv: 'penstrep', qty: 20, unit: 'mL' },
   { id: 'abx_high', cat: 'protection', price: 50, level: 1, inv: 'abx_high', qty: 3, unit: 'doses' },
   { id: 'ampho', cat: 'protection', price: 40, level: 2, inv: 'ampho', qty: 10, unit: 'mL' },
@@ -269,7 +312,7 @@ export const SHOP: ShopItem[] = [
   { id: 'flask_T75', cat: 'plastics', price: 45, level: 1, inv: 'flask_T75', qty: 10, unit: 'un' },
   { id: 'flask_T175', cat: 'plastics', price: 50, level: 2, inv: 'flask_T175', qty: 5, unit: 'un' },
   { id: 'cryovial', cat: 'plastics', price: 25, level: 1, inv: 'cryovial', qty: 20, unit: 'un' },
-  ...AGENT_ORDER.filter((a) => !AGENTS[a].needsIrradiator).map<ShopItem>((a) => ({ id: `drug_${a}`, cat: 'drugs', price: AGENTS[a].price, level: AGENTS[a].level, inv: `drug_${a}`, qty: AGENTS[a].doses, unit: 'doses', agent: a })),
+  ...AGENT_ORDER.filter((a) => !AGENTS[a].needsIrradiator && !AGENTS[a].replicative).map<ShopItem>((a) => ({ id: `drug_${a}`, cat: 'drugs', price: AGENTS[a].price, level: AGENTS[a].level, inv: `drug_${a}`, qty: AGENTS[a].doses, unit: 'doses', agent: a })),
   ...MARKER_ORDER.map<ShopItem>((m) => ({ id: `virus_${m}`, cat: 'virus', price: MARKERS[m].price, level: MARKERS[m].level, inv: `virus_${m}`, qty: 1, unit: 'aliquot', marker: m })),
   ...LINE_ORDER.map<ShopItem>((l) => ({ id: `vial_${l}`, cat: 'cells', price: Math.max(40, LINES[l].price * 12), level: LINES[l].level, special: 'vial', line: l })),
   { id: 'co2', cat: 'equipment', price: 50, level: 1, special: 'co2' },
@@ -277,6 +320,7 @@ export const SHOP: ShopItem[] = [
   { id: 'scope', cat: 'equipment', price: 0, level: 1, special: 'scope' },
   { id: 'irradiator', cat: 'equipment', price: 3500, level: 3, special: 'irradiator' },
   { id: 'computer', cat: 'equipment', price: 1500, level: 3, special: 'computer' },
+  { id: 'cytometer', cat: 'equipment', price: 6000, level: 5, special: 'cytometer' },
 ];
 
 export const DISINFECT_COST = 20;
@@ -295,7 +339,7 @@ export const SCOPES: ScopeDef[] = [
   { id: 'phase', price: 0, level: 1, impact: 1 },
   { id: 'fluo', price: 1800, level: 2, impact: 1 },
   { id: 'timelapse', price: 3500, level: 4, impact: 1.1 },
-  { id: 'confocal', price: 7000, level: 6, impact: 1.3 },
+  { id: 'livecell', price: 7000, level: 6, impact: 1.3 },
   { id: 'superres', price: 15000, level: 8, impact: 1.6 },
   { id: 'electron', price: 25000, level: 10, impact: 1.8 },
 ];

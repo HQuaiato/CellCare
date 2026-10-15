@@ -257,6 +257,62 @@ function drawFluo(g: G, cells: Cell[], morph: Morph, flask: Flask, confocal: boo
   scaleBar(g, confocal ? '20 µm' : '50 µm', '#fff');
 }
 
+export type Overlay = 'merge' | 'bf' | 'fluo';
+
+/** Live-cell com fluorescência: campo claro animado + marcadores por cima (ou só um dos dois). */
+function drawLive(g: G, cells: Cell[], morph: Morph, flask: Flask, t: number, overlay: Overlay) {
+  if (overlay === 'fluo') {
+    g.fillStyle = '#05050a';
+    g.fillRect(0, 0, SIZE, SIZE);
+  } else drawPhase(g, cells, morph, flask, t, true);
+  if (overlay === 'bf' || !flask.markers.length) return;
+  const has = (mk: string) => flask.markers.includes(mk as never);
+  const r = rng(flask.seed + 3);
+  if (overlay === 'merge') {
+    g.fillStyle = 'rgba(0,0,0,0.28)';
+    g.fillRect(0, 0, SIZE, SIZE);
+  }
+  cells.forEach((c, i) => {
+    const x = c.x + 3 * Math.sin(t * 0.7 + i);
+    const y = c.y + 3 * Math.cos(t * 0.55 + i * 1.3);
+    const ns = Math.min(c.len, c.wid) * nucSize(morph);
+    // no live-cell o ciclo avança: os núcleos FUCCI mudam de cor com o tempo
+    const phase = (c.phase + t * 0.03) % 1;
+    if (has('LUC')) {
+      g.beginPath();
+      g.arc(x, y, c.len, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(253,224,71,0.18)';
+      g.fill();
+    }
+    if (has('LC3')) {
+      g.fillStyle = '#4ade80';
+      for (let k = 0; k < 4; k++) {
+        g.beginPath();
+        g.arc(x + (r() - 0.5) * c.len * 1.5, y + (r() - 0.5) * c.wid * 1.5, 1.2, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+    const nuc = markerNucleus(flask, phase, false);
+    if (nuc) {
+      g.beginPath();
+      g.ellipse(x, y, ns * 1.15, ns, c.rot, 0, Math.PI * 2);
+      g.fillStyle = nuc;
+      g.shadowColor = nuc;
+      g.shadowBlur = 6;
+      g.fill();
+      g.shadowBlur = 0;
+    }
+    if (has('53BP1')) {
+      g.fillStyle = '#fb7185';
+      for (let k = 0; k < 2; k++) {
+        g.beginPath();
+        g.arc(x + (r() - 0.5) * ns * 1.4, y + (r() - 0.5) * ns * 1.2, 1.1, 0, Math.PI * 2);
+        g.fill();
+      }
+    }
+  });
+}
+
 function drawSuperRes(g: G, flask: Flask) {
   g.fillStyle = '#020205';
   g.fillRect(0, 0, SIZE, SIZE);
@@ -420,7 +476,7 @@ function scaleBar(g: G, label: string, color: string) {
   g.fillText(label, SIZE - 84, SIZE - 52);
 }
 
-export function Microscope({ flask, mode, emptyText }: { flask: Flask; mode: ScopeMode; emptyText: string }) {
+export function Microscope({ flask, mode, emptyText, overlay = 'merge' }: { flask: Flask; mode: ScopeMode; emptyText: string; overlay?: Overlay }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const L = LINES[flask.line];
   const conf = Math.min(1.05, confluence(flask));
@@ -444,11 +500,12 @@ export function Microscope({ flask, mode, emptyText }: { flask: Flask; mode: Sco
       g.arc(R, R, R - 2, 0, Math.PI * 2);
       g.clip();
       if (mode === 'phase' || mode === 'timelapse') drawPhase(g, cells, L.morph, flask, t, mode === 'timelapse');
-      else if ((mode === 'fluo' || mode === 'confocal' || mode === 'superres') && flask.markers.length === 0) drawDark(g, emptyText);
-      else if (mode === 'fluo' || mode === 'confocal') drawFluo(g, cells, L.morph, flask, mode === 'confocal');
+      else if ((mode === 'fluo' || mode === 'superres' || (mode === 'livecell' && overlay === 'fluo')) && flask.markers.length === 0) drawDark(g, emptyText);
+      else if (mode === 'livecell') drawLive(g, cells, L.morph, flask, t, overlay);
+      else if (mode === 'fluo') drawFluo(g, cells, L.morph, flask, true);
       else if (mode === 'superres') drawSuperRes(g, flask);
       else drawElectron(g, flask);
-      if (mode === 'timelapse') {
+      if (mode === 'timelapse' || mode === 'livecell') {
         g.fillStyle = '#111';
         g.font = 'bold 11px ui-monospace, monospace';
         const mins = Math.floor((t * 60) % 1440);
@@ -460,12 +517,12 @@ export function Microscope({ flask, mode, emptyText }: { flask: Flask; mode: Sco
       g.lineWidth = 4;
       g.strokeStyle = '#1f1a2e';
       g.stroke();
-      if (mode === 'timelapse') raf = requestAnimationFrame(frame);
+      if (mode === 'timelapse' || mode === 'livecell') raf = requestAnimationFrame(frame);
     };
     frame(performance.now());
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cells, mode, contamKey, L.morph, emptyText]);
+  }, [cells, mode, contamKey, L.morph, emptyText, overlay]);
 
   return <canvas ref={ref} className="scope" style={{ width: SIZE, height: SIZE }} />;
 }

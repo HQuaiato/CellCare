@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CellAvatar } from '../components/CellAvatar';
 import { FlaskSvg } from '../components/FlaskSvg';
-import { Microscope } from '../components/Microscope';
+import { Microscope, type Overlay } from '../components/Microscope';
 import { QuestCard } from '../components/QuestCard';
 import { Bar, Empty, Info, fmtCells, fmtNum, pct, type Tone } from '../components/ui';
 import { askHelp, canAskHelp, discardFlask, feed, have, mediumNeeds, passage, testMyco, treatContam, treatMyco } from '../game/actions';
@@ -98,6 +98,7 @@ function lineInfo(f: Flask) {
   const L = LINES[f.line];
   return [
     `${t(`line.${f.line}.origin`)}.`,
+    t('culture.tissue', { tissue: `@tissue.${L.tissue}`, kind: `@kind.${L.kind}` }),
     t(`line.${f.line}.fact`),
     `${t('culture.lineSpecs', { medium: `@medium.${L.medium}`, td: L.td, p53: L.p53 === 'wt' ? '@ui.p53wt' : '@ui.p53null' })} · ${t('culture.tdRange', { r: L.tdRange })}${
       L.maxPassage ? ` · ${t('culture.senescenceAt', { p: L.maxPassage })}` : ''
@@ -123,6 +124,7 @@ function growthInfo(f: Flask) {
 export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }) {
   const s = useGame();
   const [view, setView] = useState<'cell' | ScopeMode>('cell');
+  const [overlay, setOverlay] = useState<Overlay>('merge');
   const [modal, setModal] = useState<null | 'exp' | 'trans' | 'passes'>(null);
   const f = s.flasks.find((x) => x.id === s.selectedFlaskId) ?? s.flasks[0];
   const lv = levelOf(s.xp);
@@ -172,7 +174,7 @@ export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }
         <div className="culture-left">
           <section className="stage">
             <div className="bubble">{t(`mood.${mood}`)}</div>
-            {mode ? <Microscope flask={f} mode={mode} emptyText={t('scope.noFluor')} /> : <CellAvatar flask={f} time={s.time} />}
+            {mode ? <Microscope flask={f} mode={mode} overlay={overlay} emptyText={t('scope.noFluor')} /> : <CellAvatar flask={f} time={s.time} />}
             <div className="seg scope-seg">
               <button className={!mode ? 'on' : ''} onClick={() => setView('cell')} title={t('culture.cell')}>
                 😊
@@ -185,6 +187,15 @@ export function CultureTab({ goTo }: { goTo: (tab: 'freezer' | 'shop') => void }
               ))}
               <Info text={mode ? t(`scope.${mode}.hint`) : t('culture.viewInfo')} title={mode ? t(`scope.${mode}`) : t('culture.cell')} />
             </div>
+            {mode === 'livecell' && (
+              <div className="seg small">
+                {(['bf', 'fluo', 'merge'] as Overlay[]).map((o) => (
+                  <button key={o} className={overlay === o ? 'on' : ''} onClick={() => setOverlay(o)}>
+                    {t(`overlay.${o}`)}
+                  </button>
+                ))}
+              </div>
+            )}
           </section>
 
           <section className="card info">

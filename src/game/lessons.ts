@@ -1,4 +1,5 @@
 import { LINES, levelOf } from './data';
+import { availableDatasets } from './research';
 import { confluence, flaskMood } from './sim';
 import type { GameState } from './types';
 
@@ -31,7 +32,9 @@ export const LESSONS: Lesson[] = [
   { id: 'transduction', icon: '🧬', when: (s) => levelOf(s.xp) >= 2 },
   { id: 'markers', icon: '✨', when: (s) => anyFlask(s, (f) => f.markers.length > 0) },
   { id: 'experiment', icon: '🧪', when: (s) => (s.stats.experiments ?? 0) > 0 },
+  { id: 'datasets', icon: '📚', when: (s) => availableDatasets(s).length > 0 },
   { id: 'paper', icon: '📄', when: (s) => (s.stats.papers ?? 0) > 0 },
+  { id: 'cytometry', icon: '📊', when: (s) => !!s.equipment.cytometer },
   { id: 'senescence', icon: '⏳', when: (s) => anyFlask(s, (f) => !!LINES[f.line].maxPassage) },
   { id: 'scope', icon: '🔬', when: (s) => s.equipment.scope > 0 },
   { id: 'fixation', icon: '🧫', when: (s) => s.equipment.scope > 0 && levelOf(s.xp) >= 2 },

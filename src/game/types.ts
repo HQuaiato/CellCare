@@ -26,14 +26,32 @@ export type AgentId =
   | 'rapamycin'
   | 'chloroquine'
   | 'temozolomide'
-  | 'radiation';
+  | 'radiation'
+  | 'replicative';
 export type FlaskType = 'T25' | 'T75' | 'T175';
 /** Leitura de um experimento: ensaio de viabilidade (MTT) ou imagem de um marcador fluorescente. */
-export type AssayId = 'DAPI' | 'PHAL' | 'NMA' | 'MORPH' | 'SAGAL' | 'CLONO' | 'WOUND';
+export type AssayId =
+  | 'DAPI'
+  | 'PHAL'
+  | 'NMA'
+  | 'MORPH'
+  | 'MULTI'
+  | 'SAGAL'
+  | 'CLONO'
+  | 'WOUND'
+  | 'CYCLE'
+  | 'AUTO'
+  | 'DDR'
+  | 'FLOWCYC'
+  | 'APOP'
+  | 'C12'
+  | 'COCULT';
 export type Readout = 'MTT' | MarkerId | AssayId;
 export type ContamType = 'bacteria' | 'fungus' | 'mycoplasma';
 export type Morph = 'polygonal' | 'spindle' | 'star' | 'round' | 'cobblestone' | 'colony' | 'flat';
-export type ScopeMode = 'phase' | 'fluo' | 'timelapse' | 'confocal' | 'superres' | 'electron';
+export type ScopeMode = 'phase' | 'fluo' | 'timelapse' | 'livecell' | 'superres' | 'electron';
+export type Tissue = 'mouse' | 'cervix' | 'kidney' | 'lung' | 'breast' | 'bone' | 'skin' | 'brain' | 'blood' | 'vessel' | 'pluripotent';
+export type LineKind = 'tumor' | 'normal' | 'transformed' | 'stem';
 export type GameId = 'drop' | 'whack' | 'memory' | 'count' | 'tips' | 'pipette' | 'label' | 'centrifuge' | 'mix';
 export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
@@ -144,6 +162,8 @@ export interface Experiment {
   readyAt: number;
   flaskName: string;
   lucky?: boolean;
+  /** co-cultura: linhagem parceira */
+  partner?: LineId;
 }
 
 /** Resultado de um experimento concluído, usado para desenhar a figura. */
@@ -160,15 +180,14 @@ export interface LabResult {
   effect: number;
   at: number;
   seed: number;
+  partner?: LineId;
 }
 
 export interface Paper {
   id: string;
-  key: string;
-  line: LineId;
+  /** conjuntos de dados (linhagem|agente|leitura) reunidos no artigo */
+  keys: string[];
   agent: AgentId;
-  readout: Readout;
-  markers: MarkerId[];
   journal: number;
   impact: number;
   reward: number;
@@ -201,7 +220,9 @@ export interface GameState {
   demand: Record<string, number>;
   inventory: Record<string, number>;
   /** scope = índice do melhor microscópio em SCOPES */
-  equipment: { irradiator: boolean; scope: number; computer?: boolean };
+  equipment: { irradiator: boolean; scope: number; computer?: boolean; cytometer?: boolean };
+  /** conjuntos de dados já usados em artigos: chave → id do artigo */
+  published?: Record<string, string>;
   boosts: { autoFeedUntil: number; shieldUntil: number; sale2xUntil: number; xp2xUntil: number; lucky: number };
   gamePlays: { day: number; counts: Record<string, number> };
   bestScores: Record<string, number>;

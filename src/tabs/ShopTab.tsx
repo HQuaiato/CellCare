@@ -11,7 +11,8 @@ function owned(s: GameState, item: ShopItem) {
   if (item.medium && have(s, `cmed_${item.medium}`) > 0)
     return `${t('shop.owned', { n: fmtNum(have(s, item.inv!), 1), unit: '@unit.mL' })} · ${t('shop.complete', { n: fmtNum(have(s, `cmed_${item.medium}`), 0) })}`;
   if (item.inv) return t('shop.owned', { n: fmtNum(have(s, item.inv), 1), unit: `@unit.${item.unit}` });
-  if (item.special === 'irradiator') return s.equipment.irradiator ? `✔ ${t('shop.installed')}` : '';
+  if (item.special === 'irradiator' || item.special === 'computer' || item.special === 'cytometer')
+    return s.equipment[item.special] ? `✔ ${t('shop.installed')}` : '';
   if (item.special === 'scope') return t('shop.scopeNow', { name: `@scope.${SCOPES[s.equipment.scope].id}` });
   if (item.special === 'incubator') return t('shop.ownedCount', { n: s.incubators.length });
   if (item.special === 'co2') return t('shop.tankAt', { pct: Math.round(s.co2Tank) });
@@ -66,6 +67,7 @@ function CellShop({ s }: { s: GameState }) {
                 title={L.name}
                 text={[
                   `${t(`line.${item.line}.origin`)}.`,
+                  t('culture.tissue', { tissue: `@tissue.${L.tissue}`, kind: `@kind.${L.kind}` }),
                   t(`line.${item.line}.fact`),
                   `${t(`medium.${L.medium}`)} · ${L.suspension ? t('shop.suspension') : t(`morph.${L.morph}`)} · ${t('shop.doubling', { h: L.td })}`,
                 ].join('\n')}

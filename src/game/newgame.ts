@@ -3,7 +3,7 @@ import { log } from './econ';
 import { eqPH } from './sim';
 import type { Difficulty, GameState } from './types';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 export function newGame(player: string, difficulty: Difficulty = 'normal'): GameState {
   const s: GameState = {
@@ -87,9 +87,10 @@ export function newGame(player: string, difficulty: Difficulty = 'normal'): Game
 export function migrate(raw: any): GameState | null {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.version === SAVE_VERSION) return raw as GameState;
-  if (raw.version === 4) return v4to5(raw);
-  if (raw.version === 3) return v4to5(v3to4(raw));
-  if (raw.version === 2) return v4to5(v3to4(v2to3(raw)));
+  if (raw.version === 5) return v5to6(raw);
+  if (raw.version === 4) return v5to6(v4to5(raw));
+  if (raw.version === 3) return v5to6(v4to5(v3to4(raw)));
+  if (raw.version === 2) return v5to6(v4to5(v3to4(v2to3(raw))));
   if (raw.version !== 1) return null;
   const s = raw;
   s.version = SAVE_VERSION;
@@ -118,7 +119,7 @@ export function migrate(raw: any): GameState | null {
   });
   s.log = [];
   s.logSeq = 0;
-  return v4to5(v3to4(v2to3(s)));
+  return v5to6(v4to5(v3to4(v2to3(s))));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -145,6 +146,18 @@ function v3to4(s: any): GameState {
 function v4to5(s: any): GameState {
   s.version = SAVE_VERSION;
   s.difficulty = 'normal';
+  return s as GameState;
+}
+
+/** v6: artigos reúnem vários conjuntos de dados; duas revistas novas no topo. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function v5to6(s: any): GameState {
+  s.version = SAVE_VERSION;
+  s.published = {};
+  s.papers = (s.papers ?? []).map((p: { id: string; key: string; agent: string; journal: number; impact: number; reward: number; at: number }) => {
+    s.published[p.key] = p.id;
+    return { id: p.id, keys: [p.key], agent: p.agent, journal: p.journal + 2, impact: p.impact, reward: p.reward, at: p.at };
+  });
   log(s, 'log.migrated');
   return s as GameState;
 }

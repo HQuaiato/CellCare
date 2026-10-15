@@ -5,6 +5,17 @@ import { readoutName } from '../game/research';
 import type { LabResult } from '../game/types';
 import { t } from '../i18n';
 
+const figHow = (rd: LabResult['readout']) =>
+  rd === 'MTT' || rd === 'LUC'
+    ? 'plate'
+    : rd === 'NMA' || rd === 'MORPH'
+      ? 'scatter'
+      : ['CLONO', 'WOUND', 'SAGAL', 'CYCLE', 'FLOWCYC', 'APOP', 'COCULT', 'MULTI'].includes(rd)
+        ? rd
+        : rd === 'AUTO' || rd === 'DDR' || rd === 'C12'
+          ? 'hist'
+          : 'imaging';
+
 const rname = (r: LabResult['readout']) => {
   const x = readoutName(r);
   return x.startsWith('@') ? t(x.slice(1)) : x;
@@ -13,13 +24,13 @@ const rname = (r: LabResult['readout']) => {
 /** Figura + legenda + quantificação de um resultado. */
 export function ResultCard({ r }: { r: LabResult }) {
   const q = figureQuant(r);
-  const f = finding(r.agent, r.readout, r.line);
+  const f = finding(r.agent, r.readout, r.line, r.partner);
   return (
     <div className="result-card">
       <ResultFigure r={r} />
       <p className="small">
         <b>{t('fig.legend', { line: LINES[r.line].name, agent: `@agent.${r.agent}`, readout: rname(r.readout) })}</b>{' '}
-        <Info k={`fig.how.${r.readout in { MTT: 1, LUC: 1 } ? 'plate' : ['NMA', 'MORPH'].includes(r.readout) ? 'scatter' : ['CLONO', 'WOUND', 'SAGAL'].includes(r.readout) ? r.readout : 'imaging'}`} />
+        <Info k={`fig.how.${figHow(r.readout)}`} />
       </p>
       {r.ok ? (
         <>

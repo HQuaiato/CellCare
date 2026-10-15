@@ -1,56 +1,150 @@
 import { useState } from 'react';
 import { Info, fmtClock, fmtDuration, fmtMoney, fmtNum } from '../components/ui';
-import { LEVELS, LINES, MARKERS, finding, levelOf, unlocksAt } from '../game/data';
-import { REPLICATES_FOR_PAPER, lastResult, parseKey, readoutName } from '../game/research';
-import { useGame } from '../game/store';
-import type { LabResult, Paper } from '../game/types';
-import { t } from '../i18n';
+import { publish } from '../game/actions';
+import { LEVELS, LINES, finding, levelOf, unlocksAt } from '../game/data';
+import {
+  MAX_DATASETS,
+  REPLICATES_FOR_PAPER,
+  availableDatasets,
+  citations,
+  hIndex,
+  lastResult,
+  paperBlock,
+  paperImpact,
+  parseKey,
+  readoutName,
+  totalCitations,
+} from '../game/research';
+import { act, useGame } from '../game/store';
+import type { GameState, LabResult, Paper, Readout } from '../game/types';
+import { t, tm } from '../i18n';
 import { ResultCard, ResultModal } from '../modals/ResultModal';
 
-const rname = (r: Paper['readout']) => {
+const rname = (r: Readout) => {
   const x = readoutName(r);
   return x.startsWith('@') ? t(x.slice(1)) : x;
 };
 
-const keyLabel = (key: string) => {
-  const { line, agent, readout } = parseKey(key);
-  return `${LINES[line].name} + ${t(`agent.${agent}`)} · ${rname(readout)}`;
+export const keyLabel = (key: string) => {
+  const { line, agent, readout, partner } = parseKey(key);
+  return `${LINES[line].name}${partner ? ` + ${LINES[partner].name}` : ''} · ${t(`agent.${agent}`)} · ${rname(readout)}`;
+};
+
+const keyFinding = (key: string) => {
+  const { line, agent, readout, partner } = parseKey(key);
+  const f = finding(agent, readout, line, partner);
+  return `${t(f.key)}${f.suffix ? t(f.suffix) : ''}`;
 };
 
 function paperTitle(p: Paper) {
-  const f = finding(p.agent, p.readout, p.line);
-  const markers = p.markers.length ? ' ' + p.markers.map((mk) => MARKERS[mk].name).join('/') : '';
-  return `${t(`agent.${p.agent}`)} ${t(f.key)}${f.suffix ? t(f.suffix) : ''} ${t('paper.inCells', { line: LINES[p.line].name + markers })}`;
+  const parsed = p.keys.map(parseKey);
+  const lines = [...new Set(parsed.map((x) => LINES[x.line].name))];
+  if (p.keys.length === 1) return `${t(`agent.${p.agent}`)} ${keyFinding(p.keys[0])} ${t('paper.inCells', { line: lines[0] })}`;
+  const methods = [...new Set(parsed.map((x) => x.readout))];
+  if (methods.length === 1) return t('paper.multiLine', { agent: `@agent.${p.agent}`, lines: lines.join(', '), readout: rname(methods[0]) });
+  return t('paper.integrated', { agent: `@agent.${p.agent}`, lines: lines.join(', '), n: methods.length });
 }
 
-function PaperItem({ p, figure }: { p: Paper; figure?: LabResult }) {
+function PaperItem({ p, s }: { p: Paper; s: GameState }) {
   const [open, setOpen] = useState(false);
-  const f = finding(p.agent, p.readout, p.line);
+  const parsed = p.keys.map(parseKey);
+  const lines = [...new Set(parsed.map((x) => LINES[x.line].name))].join(', ');
+  const readouts = [...new Set(parsed.map((x) => rname(x.readout)))].join(', ');
   return (
     <div className={`paper ${open ? 'open' : ''}`}>
       <button className="paper-head" onClick={() => setOpen(!open)}>
         <b>“{paperTitle(p)}”</b>
         <small>
-          <i>{t(`journal.${p.journal}`)}</i> · {t('res.impact', { i: fmtNum(p.impact * 10) })} · {fmtMoney(p.reward)} {open ? '▲' : '▼'}
+          <i>{t(`journal.${p.journal}`)}</i> · {t('res.impact', { i: fmtNum(p.impact * 10) })} · {t('res.cites', { n: citations(p, s.time) })} {open ? '▲' : '▼'}
         </small>
       </button>
       {open && (
         <div className="paper-body">
           <p className="small">
             <b>{t('paper.abstractTitle')}</b>{' '}
-            {t('paper.abstract', {
-              line: LINES[p.line].name,
+            {t(p.keys.length > 1 ? 'paper.abstractMulti' : 'paper.abstract', {
+              line: lines,
               agent: `@agent.${p.agent}`,
-              readout: rname(p.readout),
-              finding: '@' + f.key,
+              readout: readouts,
+              finding: keyFinding(p.keys[0]),
               n: REPLICATES_FOR_PAPER,
             })}
           </p>
-          {figure && <ResultCard r={figure} />}
-          <p className="muted small">{t('paper.published', { when: fmtClock(p.at) })}</p>
+          {p.keys.length > 1 && (
+            <ul className="findings">
+              {p.keys.map((k) => (
+                <li key={k}>
+                  <b>{keyLabel(k)}:</b> {keyFinding(k)}
+                </li>
+              ))}
+            </ul>
+          )}
+          {p.keys.map((k) => {
+            const fig = lastResult(s, k);
+            return fig ? <ResultCard key={k} r={fig} /> : null;
+          })}
+          <p className="muted small">{t('paper.published', { when: fmtClock(p.at) })} · {fmtMoney(p.reward)}</p>
         </div>
       )}
     </div>
+  );
+}
+
+/** Montagem de artigo: escolha conjuntos de dados do mesmo tratamento. */
+function Composer({ s }: { s: GameState }) {
+  const [sel, setSel] = useState<string[]>([]);
+  const avail = availableDatasets(s);
+  const chosen = sel.filter((k) => avail.includes(k));
+  const block = paperBlock(s, chosen);
+  const ib = chosen.length ? paperImpact(s, chosen) : null;
+  const agentSel = chosen.length ? parseKey(chosen[0]).agent : null;
+  const toggle = (k: string) => setSel((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev.filter((x) => avail.includes(x)), k]));
+
+  return (
+    <section className="card span-2">
+      <h3>
+        📚 {t('res.datasets', { n: avail.length })} <Info k="res.datasetsInfo" title={t('res.composer')} />
+      </h3>
+      {avail.length === 0 && <p className="muted small">{t('res.noDatasets', { n: REPLICATES_FOR_PAPER })}</p>}
+      <div className="dataset-list">
+        {avail.map((k) => {
+          const other = agentSel !== null && parseKey(k).agent !== agentSel;
+          return (
+            <button key={k} className={`dataset ${chosen.includes(k) ? 'on' : ''} ${other ? 'other' : ''}`} onClick={() => toggle(k)}>
+              <span>{chosen.includes(k) ? '☑' : '☐'}</span>
+              <span className="grow">
+                <b>{keyLabel(k)}</b>
+                <small>{keyFinding(k)}</small>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {ib && (
+        <div className="composer">
+          <div className="badges">
+            <span className="badge-pill">📄 {t('res.nDatasets', { n: chosen.length, max: MAX_DATASETS })}</span>
+            <span className="badge-pill">🔬 {t('res.nMethods', { n: ib.methods })}</span>
+            <span className="badge-pill">🧫 {t('res.nLines', { n: ib.lines })}</span>
+            {ib.sameTumor && <span className="badge-pill">🎯 {t('res.sameTumor')}</span>}
+            {ib.tumorVsNormal && <span className="badge-pill">⚖️ {t('res.tumorVsNormal')}</span>}
+          </div>
+          <p className="small">
+            {t('res.preview', { journal: `@journal.${ib.journal}`, i: fmtNum(ib.impact * 10), reward: fmtMoney(ib.reward) })}
+          </p>
+          {block && <p className="hint bad">{tm(block)}</p>}
+          <button
+            className="btn primary block"
+            disabled={!!block}
+            onClick={() => {
+              if (act((st) => publish(st, chosen), true)) setSel([]);
+            }}
+          >
+            📤 {t('res.submit')}
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -58,12 +152,30 @@ export function ResearchTab() {
   const s = useGame();
   const lv = levelOf(s.xp);
   const [view, setView] = useState<LabResult | null>(null);
-  const keys = Object.keys(s.replicates).sort((a, b) => (s.replicates[b] ?? 0) - (s.replicates[a] ?? 0));
+  const inProgress = Object.keys(s.replicates).filter((k) => s.replicates[k] < REPLICATES_FOR_PAPER);
   const next = [lv + 1, lv + 2].filter((l) => l <= LEVELS.length);
   const results = s.labResults ?? [];
 
   return (
     <div className="stack grid-2">
+      <section className="card span-2 science-card">
+        <div>
+          <small className="muted">{t('res.hIndex')}</small>
+          <b>{hIndex(s)}</b>
+        </div>
+        <div>
+          <small className="muted">{t('res.totalCites')}</small>
+          <b>{totalCitations(s)}</b>
+        </div>
+        <div>
+          <small className="muted">{t('res.paperCount')}</small>
+          <b>{s.papers.length}</b>
+        </div>
+        <Info k="res.hInfo" title={t('res.hIndex')} />
+      </section>
+
+      <Composer s={s} />
+
       <section className="card">
         <h3>⏳ {t('res.running')}</h3>
         {s.experiments.length === 0 && <p className="muted small">{t('res.noneRunning')}</p>}
@@ -78,10 +190,18 @@ export function ResearchTab() {
               <div className="bar-track">
                 <div className="bar-fill tone-neutral" style={{ width: `${done * 100}%` }} />
               </div>
-              <small className="muted">{e.flaskName}</small>
             </div>
           );
         })}
+        {inProgress.length > 0 && <h4>{t('res.projects')}</h4>}
+        {inProgress.map((k) => (
+          <div key={k} className="project row between">
+            <span className="small">{keyLabel(k)}</span>
+            <span className="pill">
+              {s.replicates[k]}/{REPLICATES_FOR_PAPER}
+            </span>
+          </div>
+        ))}
       </section>
 
       <section className="card">
@@ -100,30 +220,11 @@ export function ResearchTab() {
         </div>
       </section>
 
-      <section className="card">
-        <h3>📊 {t('res.projects')}</h3>
-        {keys.length === 0 && <p className="muted small">{t('res.noProjects', { n: REPLICATES_FOR_PAPER })}</p>}
-        {keys.map((k) => {
-          const { line, agent, readout } = parseKey(k);
-          return (
-            <div key={k} className="project">
-              <div className="row between">
-                <b>{keyLabel(k)}</b>
-                <span className={`pill ${s.replicates[k] >= REPLICATES_FOR_PAPER ? 'done' : ''}`}>
-                  {Math.min(s.replicates[k], REPLICATES_FOR_PAPER)}/{REPLICATES_FOR_PAPER}
-                </span>
-              </div>
-              <small className="muted">{t(finding(agent, readout, line).key)}</small>
-            </div>
-          );
-        })}
-      </section>
-
-      <section className="card">
+      <section className="card span-2">
         <h3>📄 {t('res.papers', { n: s.papers.length })}</h3>
         {s.papers.length === 0 && <p className="muted small">{t('res.noPapers')}</p>}
         {s.papers.map((p) => (
-          <PaperItem key={p.id} p={p} figure={lastResult(s, p.key)} />
+          <PaperItem key={p.id} p={p} s={s} />
         ))}
       </section>
 

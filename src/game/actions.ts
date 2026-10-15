@@ -1,7 +1,7 @@
-import { AGENTS, ASSAYS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, MIX_VOLUME, PASSES, SCOPES, SHOP, diff, gameLevelMult, gameMult, hasScope, isAssay, levelOf, type PassId } from './data';
+import { AGENTS, ASSAYS, CELLS_PER_VIAL, CONTAM, DISINFECT_COST, EARLY_UNLOCK_MULT, FLASKS, GAMES, HELP_COOLDOWN_H, LINES, MARKERS, MEDIA, MIX_VOLUME, PASSES, SCOPES, SHOP, diff, gameLevelMult, gameMult, hasScope, isAssay, levelOf, HIGH_PASSAGE, type PassId } from './data';
 import { VIAL_PREMIUM, addXp, bump, log, m, sellCells } from './econ';
 import { QUESTS } from './quests';
-import { expKey } from './research';
+import { expKey, paperBlock, publishPaper } from './research';
 import { advance, capacity, confluence, eqPH, flaskName, isMyco, viability } from './sim';
 import type { AgentId, ContamType, Difficulty, Flask, FlaskType, GameId, GameState, LineId, MarkerId, MediumId, Msg, Readout } from './types';
 
@@ -382,6 +382,10 @@ export function buy(s: GameState, itemId: string): Msg {
       if (s.equipment.computer) fail('err.alreadyOwned');
       s.equipment.computer = true;
       break;
+    case 'cytometer':
+      if (s.equipment.cytometer) fail('err.alreadyOwned');
+      s.equipment.cytometer = true;
+      break;
     case 'scope':
       if (!SCOPES[s.equipment.scope + 1]) fail('err.alreadyOwned');
       s.equipment.scope += 1;
@@ -476,7 +480,7 @@ export function startTransduction(s: GameState, flaskId: string, marker: MarkerI
   return m('ok.transduction', { marker: MARKERS[marker].name });
 }
 
-export function experimentQuality(f: Flask) {
+export function experimentQuality(f: Flask, agent?: AgentId) {
   const c = f.contam;
   if (c && c.type !== 'mycoplasma') return 0;
   const L = LINES[f.line];
@@ -489,7 +493,7 @@ export function experimentQuality(f: Flask) {
   else if (cf > 0.95) q *= 0.6;
   if (f.medium !== L.medium) q *= 0.7;
   if (f.passage > 30) q *= 0.8;
-  if (L.maxPassage && !f.immortal && f.passage > L.maxPassage) q *= 0.5;
+  if (L.maxPassage && !f.immortal && f.passage > L.maxPassage && agent !== 'replicative') q *= 0.5;
   if (c?.type === 'mycoplasma') q *= 1 - 0.7 * c.level; // invisível, mas estraga os dados
   return q;
 }
@@ -505,40 +509,68 @@ export function readoutBlock(s: GameState, f: Flask, r: Readout): Msg | null {
   }
   const A = ASSAYS[r];
   if (levelOf(s.xp) < A.level) return m('err.levelLocked', { lv: A.level });
+  if (A.marker && !f.markers.includes(A.marker)) return m('exp.needMarker', { m: MARKERS[A.marker].name });
   if (A.scope && !hasScope(s.equipment.scope, A.scope)) return m('exp.needScope', { scope: `@scope.${A.scope}` });
   if (A.computer && !s.equipment.computer) return m('exp.needComputer');
+  if (A.cytometer && !s.equipment.cytometer) return m('exp.needCytometer');
+  if (A.partner && !s.flasks.some((x) => x.id !== f.id && x.line !== f.line)) return m('exp.needPartner');
   for (const [k, n] of Object.entries(A.needs)) if (have(s, k) < n) return m('exp.needItem', { item: `@inv.${k}` });
   return null;
 }
 
-export function startExperiment(s: GameState, flaskId: string, agent: AgentId, readout: Readout): Msg {
+/** Por que esse agente não pode ser usado nesse frasco (null = pode). */
+export function agentBlock(s: GameState, f: Flask, agent: AgentId): Msg | null {
+  const A = AGENTS[agent];
+  if (levelOf(s.xp) < A.level) return m('err.levelLocked', { lv: A.level });
+  if (A.needsIrradiator && !s.equipment.irradiator) return m('err.needIrradiator');
+  if (A.replicative) {
+    const L = LINES[f.line];
+    if (!L.maxPassage || f.immortal) return m('exp.onlyNormal');
+    if (f.passage < Math.round(L.maxPassage * HIGH_PASSAGE)) return m('exp.needHighPassage', { p: Math.round(L.maxPassage * HIGH_PASSAGE) });
+    return null;
+  }
+  if (have(s, `drug_${agent}`) < 1) return m('exp.needItem', { item: `@agent.${agent}` });
+  return null;
+}
+
+/** Possíveis parceiros de co-cultura: frascos de outra linhagem. */
+export const coPartners = (s: GameState, f: Flask) => s.flasks.filter((x) => x.id !== f.id && x.line !== f.line && !x.transduction);
+
+export function startExperiment(s: GameState, flaskId: string, agent: AgentId, readout: Readout, partnerId?: string): Msg {
   const f = getFlask(s, flaskId);
   if (f.transduction) fail('err.waitTransduction');
   const A = AGENTS[agent];
-  if (levelOf(s.xp) < A.level) fail('err.levelLocked', { lv: A.level });
-  if (A.needsIrradiator && !s.equipment.irradiator) fail('err.needIrradiator');
+  const ab = agentBlock(s, f, agent);
+  if (ab) throw new GameError(ab);
+  let partner: Flask | undefined;
+  if (readout === 'COCULT') {
+    partner = coPartners(s, f).find((x) => x.id === partnerId) ?? fail('exp.needPartner');
+    // para distinguir as duas populações, pelo menos uma precisa estar marcada
+    if (!f.markers.length && !partner.markers.length) fail('exp.needLabel');
+  }
   const block = readoutBlock(s, f, readout);
   if (block) throw new GameError(block);
   const needs: Record<string, number> = isAssay(readout) ? { ...ASSAYS[readout].needs } : {};
-  if (!A.needsIrradiator) needs[`drug_${agent}`] = 1;
+  if (!A.needsIrradiator && !A.replicative) needs[`drug_${agent}`] = 1;
   if (readout === 'MTT') needs.MTT = 1;
   spend(s, needs);
   const lucky = s.boosts.lucky > 0;
   if (lucky) s.boosts.lucky -= 1;
   s.experiments.push({
     id: uid(),
-    key: expKey(f.line, agent, readout),
+    key: expKey(f.line, agent, readout, partner?.line),
     line: f.line,
     agent,
     readout,
     markers: [...f.markers],
-    quality: lucky ? 1 : experimentQuality(f),
+    quality: lucky ? 1 : partner ? Math.min(experimentQuality(f, agent), experimentQuality(partner)) : experimentQuality(f, agent),
     lucky,
+    partner: partner?.line,
     startedAt: s.time,
     readyAt: s.time + experimentHours(readout),
     flaskName: flaskName(f),
   });
-  s.flasks = s.flasks.filter((x) => x.id !== flaskId);
+  s.flasks = s.flasks.filter((x) => x.id !== flaskId && x.id !== partner?.id);
   s.selectedFlaskId = s.flasks[0]?.id ?? null;
   bump(s, 'experiments');
   addXp(s, 8);
@@ -667,4 +699,13 @@ export function mixMedium(s: GameState, medium: MediumId, accuracy: number): Msg
   s.inventory[`cmed_${medium}`] = have(s, `cmed_${medium}`) + ml;
   addXp(s, Math.round(accuracy * 10));
   return m('ok.mixed', { ml, medium: `@medium.${medium}` });
+}
+
+// ---------------------------------------------------------------- publicação
+
+export function publish(s: GameState, keys: string[]): Msg {
+  const block = paperBlock(s, keys);
+  if (block) throw new GameError(block);
+  const p = publishPaper(s, keys);
+  return m('ok.published', { journal: `@journal.${p.journal}`, reward: p.reward });
 }

@@ -1,6 +1,6 @@
 import { CONTAM, FLASKS, LINES, MEDIA, STIPEND, SUSPENSION_MAX_DENSITY, diff, hasScope, levelOf } from './data';
 import { log } from './econ';
-import { resolveExperiment } from './research';
+import { hIndex, resolveExperiment } from './research';
 import type { Flask, GameState, MediumId, Mood } from './types';
 
 export const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
@@ -247,7 +247,8 @@ export function advance(s: GameState, hours: number) {
     const day = Math.floor(s.time / 24);
     if (day > s.lastStipendDay) {
       s.lastStipendDay = day;
-      const amount = Math.round(STIPEND(levelOf(s.xp)) * diff(s).stipend);
+      // bolsa de produtividade: cresce com o nível e com o índice h
+      const amount = Math.round((STIPEND(levelOf(s.xp)) + 4 * hIndex(s)) * diff(s).stipend);
       s.money += amount;
       log(s, 'log.stipend', { amount }, 'info');
     }

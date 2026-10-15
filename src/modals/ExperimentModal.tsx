@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Info, Modal, pct } from '../components/ui';
-import { experimentHours, experimentQuality, have, readoutBlock, startExperiment } from '../game/actions';
+import { agentBlock, coPartners, experimentHours, experimentQuality, have, readoutBlock, startExperiment } from '../game/actions';
 import { AGENT_ORDER, AGENTS, ASSAY_ORDER, ASSAYS, LINES, MARKERS, finding, levelOf } from '../game/data';
 import { queueLesson } from '../game/lessons';
 import { REPLICATES_FOR_PAPER, expKey } from '../game/research';
+import { flaskName } from '../game/sim';
 import { act, useGame } from '../game/store';
 import type { AgentId, Flask, Readout } from '../game/types';
 import { t, tm } from '../i18n';
@@ -15,15 +16,17 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
   const [agent, setAgent] = useState<AgentId | null>(null);
   const readouts: Readout[] = ['MTT', ...flask.markers, ...ASSAY_ORDER.filter((a) => ASSAYS[a].level <= lv)];
   const [readout, setReadout] = useState<Readout>('MTT');
-  const q = experimentQuality(flask);
-  const key = agent ? expKey(flask.line, agent, readout) : null;
+  const [partnerId, setPartnerId] = useState<string | null>(null);
+  const partners = coPartners(s, flask);
+  const partner = partners.find((x) => x.id === partnerId);
+  const q = experimentQuality(flask, agent ?? undefined);
+  const key = agent ? expKey(flask.line, agent, readout, readout === 'COCULT' ? partner?.line : undefined) : null;
   const n = key ? s.replicates[key] ?? 0 : 0;
 
   useEffect(() => {
     act((st) => queueLesson(st, 'experiment'), true);
   }, []);
 
-  const agentAvail = (a: AgentId) => (AGENTS[a].needsIrradiator ? s.equipment.irradiator : have(s, `drug_${a}`) > 0);
   const title = (r: Readout) =>
     r === 'MTT' ? t('exp.mtt') : r in ASSAYS ? `${ASSAYS[r as keyof typeof ASSAYS].icon} ${t(`assay.${r}`)}` : t('exp.imaging', { m: MARKERS[r as keyof typeof MARKERS].name });
   const info = (r: Readout) => (r === 'MTT' ? t('assay.MTT.desc') : r in ASSAYS ? t(`assay.${r}.desc`) : t(`marker.${r}`));
@@ -37,12 +40,18 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
       <h4>1. {t('exp.agent')}</h4>
       <div className="pick">
         {agents.map((a) => (
-          <button key={a} className={agent === a ? 'on' : ''} disabled={!agentAvail(a)} onClick={() => setAgent(a)}>
+          <button key={a} className={agent === a ? 'on' : ''} disabled={!!agentBlock(s, flask, a)} onClick={() => setAgent(a)}>
             <b>{t(`agent.${a}`)}</b>
             <small>
               {t(`agentcls.${a}`)}
               <br />
-              {AGENTS[a].needsIrradiator ? t(s.equipment.irradiator ? 'exp.irradiatorReady' : 'exp.needIrradiator') : t('exp.doses', { n: have(s, `drug_${a}`) })}
+              {agentBlock(s, flask, a)
+                ? `🔒 ${tm(agentBlock(s, flask, a)!)}`
+                : AGENTS[a].needsIrradiator
+                  ? t('exp.irradiatorReady')
+                  : AGENTS[a].replicative
+                    ? t('exp.replicativeReady')
+                    : t('exp.doses', { n: have(s, `drug_${a}`) })}
             </small>
           </button>
         ))}
@@ -71,20 +80,40 @@ export function ExperimentModal({ flask, onClose }: { flask: Flask; onClose: () 
           );
         })}
       </div>
+      {readout === 'COCULT' && (
+        <>
+          <h4>
+            3. {t('exp.partner')} <Info k="exp.partnerInfo" title={t('exp.partner')} />
+          </h4>
+          <div className="pick">
+            {partners.map((x) => (
+              <button key={x.id} className={partnerId === x.id ? 'on' : ''} onClick={() => setPartnerId(x.id)}>
+                <b>
+                  {LINES[x.line].badge} {flaskName(x)}
+                </b>
+                <small>
+                  {t(`tissue.${LINES[x.line].tissue}`)} · {t(`kind.${LINES[x.line].kind}`)}
+                  {x.markers.length > 0 && ` · 🧬 ${x.markers.join(', ')}`}
+                </small>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       {s.boosts.lucky > 0 && <p className="hint">🍀 {t('exp.lucky')}</p>}
 
       {key && agent && (
         <p className="muted small">
           {t('exp.progress', { line: LINES[flask.line].name, agent: `@agent.${agent}`, n, total: REPLICATES_FOR_PAPER })}
-          {n > 0 && <> · <i>{t(finding(agent, readout, flask.line).key)}</i></>}
+          {n > 0 && <> · <i>{t(finding(agent, readout, flask.line, partner?.line).key)}</i></>}
         </p>
       )}
 
       <button
         className="btn primary block"
-        disabled={!agent || !!readoutBlock(s, flask, readout)}
+        disabled={!agent || !!readoutBlock(s, flask, readout) || (readout === 'COCULT' && !partner)}
         onClick={() => {
-          if (agent && act((st) => startExperiment(st, flask.id, agent, readout))) onClose();
+          if (agent && act((st) => startExperiment(st, flask.id, agent, readout, partner?.id))) onClose();
         }}
       >
         {t('exp.start', { h: experimentHours(readout) })}

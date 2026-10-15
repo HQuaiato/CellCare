@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { agentGroup } from '../game/data';
+import { LINES, agentGroup, partnerType } from '../game/data';
 import type { LabResult } from '../game/types';
 import { fmtN, t } from '../i18n';
 
@@ -26,6 +26,18 @@ const PANELS = [
   { x: 8, y: 22, w: 168, h: 180 },
   { x: 184, y: 22, w: 168, h: 180 },
 ];
+
+const labs = (r: LabResult): [string, string] =>
+  r.agent === 'replicative' ? [t('fig.lowP'), t('fig.highP')] : r.readout === 'COCULT' ? [t('fig.mono'), t('fig.cocult')] : [t('fig.control'), t('fig.treated')];
+
+/** Fração de células em G1 / S / G2-M conforme a classe do agente. */
+function cycleFractions(r: LabResult, treated: boolean) {
+  const e = treated ? r.effect : 0;
+  const grp = agentGroup(r.agent);
+  if (grp === 'dna' || grp === 'mitotic') return [0.55 - 0.5 * e * 0.9, 0.1, 0.35 + 0.45 * e];
+  if (grp === 'replication') return [0.55 - 0.4 * e, 0.1 + 0.4 * e, 0.35];
+  return [0.55 + 0.35 * e, 0.1 - 0.05 * e, 0.35 - 0.3 * e];
+}
 
 function panelLabels(g: G, labels: [string, string], color = '#1e293b') {
   g.fillStyle = color;
@@ -62,7 +74,7 @@ export function figureQuant(r: LabResult) {
     case 'LC3':
       return { label: t('fig.q.puncta'), c: '3', t: n(3 + 20 * e) };
     case 'FUCCI':
-      return grp === 'autophagy'
+      return grp === 'autophagy' || grp === 'senescence'
         ? { label: t('fig.q.g1'), c: '55%', t: `${n(55 + 35 * e)}%` }
         : { label: t('fig.q.g2'), c: '35%', t: `${n(35 + 50 * e)}%` };
     case 'H2B':
@@ -85,6 +97,28 @@ export function figureQuant(r: LabResult) {
       return { label: t('fig.q.sf'), c: n(1, 2), t: n(1 - 0.85 * e, 2) };
     case 'WOUND':
       return { label: t('fig.q.closure'), c: '85%', t: `${n(85 * (1 - 0.6 * e))}%` };
+    case 'CYCLE':
+    case 'FLOWCYC': {
+      const [g1c, sc, g2c] = cycleFractions(r, false);
+      const [g1, st, g2] = cycleFractions(r, true);
+      if (grp === 'replication') return { label: t('fig.q.s'), c: `${n(sc * 100)}%`, t: `${n(st * 100)}%` };
+      if (grp === 'dna' || grp === 'mitotic') return { label: t('fig.q.g2'), c: `${n(g2c * 100)}%`, t: `${n(g2 * 100)}%` };
+      return { label: t('fig.q.g1'), c: `${n(g1c * 100)}%`, t: `${n(g1 * 100)}%` };
+    }
+    case 'AUTO':
+      return { label: t('fig.q.puncta'), c: '3', t: n(3 + 20 * e) };
+    case 'DDR':
+      return { label: t('fig.q.foci'), c: n(1.5, 1), t: n(1.5 + 14 * e, 1) };
+    case 'MULTI':
+      return { label: t('fig.q.multinuc'), c: '3%', t: `${n(3 + (grp === 'mitotic' ? 50 : 25) * e)}%` };
+    case 'APOP':
+      return { label: t('fig.q.apop'), c: '6%', t: `${n(6 + (grp === 'dna' || grp === 'mitotic' ? 60 : 25) * e)}%` };
+    case 'C12':
+      return { label: t('fig.q.c12'), c: '5%', t: `${n(5 + 60 * e)}%` };
+    case 'COCULT': {
+      const pt = r.partner ? partnerType(r.partner) : 'tumor';
+      return { label: t(`fig.q.cocult.${pt}`), c: `${n(1, 1)}×`, t: `${n(1 + 1.3 * e, 1)}×` };
+    }
   }
 }
 
@@ -221,7 +255,7 @@ function drawImaging(g: G, r: LabResult) {
       g.fillRect(p.x + p.w - 42, p.y + p.h - 12, 30, 3);
     });
   });
-  panelLabels(g, [t('fig.control'), t('fig.treated')]);
+  panelLabels(g, labs(r));
 }
 
 function drawScatter(g: G, r: LabResult, morph: boolean) {
@@ -273,7 +307,7 @@ function drawScatter(g: G, r: LabResult, morph: boolean) {
       }
     });
   });
-  panelLabels(g, [t('fig.control'), t('fig.treated')]);
+  panelLabels(g, labs(r));
 }
 
 function drawSagal(g: G, r: LabResult) {
@@ -297,7 +331,7 @@ function drawSagal(g: G, r: LabResult) {
       }
     });
   });
-  panelLabels(g, [t('fig.control'), t('fig.treated')]);
+  panelLabels(g, labs(r));
 }
 
 function drawClono(g: G, r: LabResult) {
@@ -324,7 +358,7 @@ function drawClono(g: G, r: LabResult) {
       g.fill();
     }
   });
-  panelLabels(g, [t('fig.control'), t('fig.treated')]);
+  panelLabels(g, labs(r));
 }
 
 function drawWound(g: G, r: LabResult) {
@@ -359,7 +393,237 @@ function drawWound(g: G, r: LabResult) {
       g.setLineDash([]);
     });
   });
-  panelLabels(g, [`${t('fig.control')} · 24 h`, `${t('fig.treated')} · 24 h`]);
+  panelLabels(g, [`${labs(r)[0]} · 24 h`, `${labs(r)[1]} · 24 h`]);
+}
+
+function axes(g: G, p: (typeof PANELS)[number], xl: string) {
+  g.strokeStyle = '#94a3b8';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(p.x + 14, p.y + 8);
+  g.lineTo(p.x + 14, p.y + p.h - 16);
+  g.lineTo(p.x + p.w - 6, p.y + p.h - 16);
+  g.stroke();
+  g.fillStyle = '#64748b';
+  g.font = '9px system-ui';
+  g.fillText(xl, p.x + p.w - 6 - g.measureText(xl).width, p.y + p.h - 4);
+}
+
+/** Barras empilhadas G1/S/G2-M (FUCCI computacional). */
+function drawCycleBars(g: G, r: LabResult) {
+  const colors = ['#f87171', '#facc15', '#4ade80'];
+  const names = ['G1', 'S', 'G2/M'];
+  const labels = labs(r);
+  [0, 1].forEach((i) => {
+    const fr = cycleFractions(r, i === 1);
+    const x = 70 + i * 140;
+    let y = 196;
+    fr.forEach((f, k) => {
+      const h = f * 160;
+      g.fillStyle = colors[k];
+      g.fillRect(x, y - h, 70, h);
+      if (f > 0.07) {
+        g.fillStyle = '#1e293b';
+        g.font = '700 10px system-ui';
+        g.fillText(`${names[k]} ${Math.round(f * 100)}%`, x + 6, y - h / 2 + 4);
+      }
+      y -= h;
+    });
+    g.fillStyle = '#1e293b';
+    g.font = '700 11px system-ui';
+    g.textAlign = 'center';
+    g.fillText(labels[i], x + 35, 16);
+    g.textAlign = 'start';
+  });
+}
+
+/** Distribuições sobrepostas: controle (cinza) × tratado (cor). */
+function drawHist(g: G, r: LabResult, mean0: number, mean1: number, max: number, xl: string, color: string) {
+  const p = { x: 20, y: 22, w: W - 40, h: H - 30 };
+  axes(g, p, xl);
+  const curve = (mean: number, col: string) => {
+    const sd = Math.max(0.8, mean * 0.45);
+    g.beginPath();
+    for (let k = 0; k <= 80; k++) {
+      const x = (k / 80) * max;
+      const yv = Math.exp(-(((x - mean) / sd) ** 2) / 2);
+      const px = p.x + 14 + (k / 80) * (p.w - 20);
+      const py = p.y + p.h - 16 - yv * (p.h - 34);
+      if (k === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    g.lineTo(p.x + p.w - 6, p.y + p.h - 16);
+    g.lineTo(p.x + 14, p.y + p.h - 16);
+    g.closePath();
+    g.fillStyle = col;
+    g.globalAlpha = 0.45;
+    g.fill();
+    g.globalAlpha = 1;
+  };
+  curve(mean0, '#94a3b8');
+  curve(mean1, color);
+  const [a, b] = labs(r);
+  g.font = '700 10px system-ui';
+  g.fillStyle = '#64748b';
+  g.fillText(`■ ${a}`, p.x + 24, 14);
+  g.fillStyle = color;
+  g.fillText(`■ ${b}`, p.x + 120, 14);
+}
+
+/** Citometria: conteúdo de DNA (PI) com picos G1 e G2. */
+function drawFlowCycle(g: G, r: LabResult) {
+  const grp = agentGroup(r.agent);
+  [0, 1].forEach((i) => {
+    const [g1, sp, g2] = cycleFractions(r, i === 1);
+    const subG1 = i === 1 && grp === 'dna' ? 0.15 * r.effect : 0.02;
+    clipPanel(g, i, '#ffffff', (p) => {
+      axes(g, p, t('fig.ax.dna'));
+      const w = p.w - 20;
+      g.beginPath();
+      for (let k = 0; k <= 100; k++) {
+        const x = k / 100;
+        const y =
+          g1 * Math.exp(-(((x - 0.33) / 0.035) ** 2)) +
+          g2 * 0.55 * Math.exp(-(((x - 0.66) / 0.05) ** 2)) +
+          (x > 0.36 && x < 0.62 ? sp * 0.35 : 0) +
+          subG1 * Math.exp(-(((x - 0.15) / 0.05) ** 2));
+        const px = p.x + 14 + x * w;
+        const py = p.y + p.h - 16 - Math.min(1, y * 1.4) * (p.h - 34);
+        if (k === 0) g.moveTo(px, py);
+        else g.lineTo(px, py);
+      }
+      g.strokeStyle = '#7c3aed';
+      g.lineWidth = 2;
+      g.stroke();
+      g.fillStyle = '#64748b';
+      g.font = '9px system-ui';
+      g.fillText('G1', p.x + 14 + 0.3 * w, p.y + 18);
+      g.fillText('G2', p.x + 14 + 0.63 * w, p.y + 18);
+    });
+  });
+  panelLabels(g, labs(r));
+}
+
+/** Anexina V × PI: vivas, apoptose inicial, apoptose tardia/necrose. */
+function drawApop(g: G, r: LabResult) {
+  const grp = agentGroup(r.agent);
+  const k = grp === 'dna' || grp === 'mitotic' ? 1 : 0.4;
+  [0, 1].forEach((i) => {
+    const e = i === 1 ? r.effect * k : 0;
+    const rnd = rng(r.seed + 41 * i);
+    clipPanel(g, i, '#ffffff', (p) => {
+      axes(g, p, t('fig.ax.annexin'));
+      const mx = p.x + 14 + (p.w - 20) / 2;
+      const my = p.y + 8 + (p.h - 24) / 2;
+      g.setLineDash([3, 3]);
+      g.strokeStyle = '#cbd5e1';
+      g.beginPath();
+      g.moveTo(mx, p.y + 8);
+      g.lineTo(mx, p.y + p.h - 16);
+      g.moveTo(p.x + 14, my);
+      g.lineTo(p.x + p.w - 6, my);
+      g.stroke();
+      g.setLineDash([]);
+      for (let n = 0; n < 220; n++) {
+        const u = rnd();
+        let x = 0.2 + rnd() * 0.25;
+        let y = 0.2 + rnd() * 0.25;
+        if (u < 0.03 + 0.3 * e) x = 0.6 + rnd() * 0.3;
+        else if (u < 0.06 + 0.65 * e) [x, y] = [0.6 + rnd() * 0.3, 0.6 + rnd() * 0.3];
+        g.fillStyle = x > 0.5 ? (y > 0.5 ? '#ef4444' : '#f59e0b') : '#64748b';
+        g.globalAlpha = 0.6;
+        g.fillRect(p.x + 14 + x * (p.w - 20), p.y + p.h - 16 - y * (p.h - 24), 2.2, 2.2);
+        g.globalAlpha = 1;
+      }
+    });
+  });
+  panelLabels(g, labs(r));
+}
+
+/** Multinucleação: actina (vermelho) + núcleos (azul). */
+function drawMulti(g: G, r: LabResult) {
+  const grp = agentGroup(r.agent);
+  [0, 1].forEach((i) => {
+    const frac = 0.03 + (i === 1 ? (grp === 'mitotic' ? 0.5 : 0.25) * r.effect : 0);
+    const rnd = rng(r.seed + 23 * i);
+    clipPanel(g, i, '#03030a', (p) => {
+      for (const c of cellsIn(p, rnd, 9)) {
+        const multi = rnd() < frac;
+        const rx = multi ? 26 : 18;
+        g.beginPath();
+        g.ellipse(c.x, c.y, rx, rx * 0.7, rnd() * 3, 0, Math.PI * 2);
+        g.strokeStyle = 'rgba(248,113,113,0.9)';
+        g.lineWidth = 1.5;
+        g.stroke();
+        const nn = multi ? 2 + Math.floor(rnd() * 3) : 1;
+        g.fillStyle = '#60a5fa';
+        for (let k = 0; k < nn; k++) {
+          g.beginPath();
+          g.arc(c.x + (nn > 1 ? Math.cos((k / nn) * 6.28) * 9 : 0), c.y + (nn > 1 ? Math.sin((k / nn) * 6.28) * 6 : 0), 6, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    });
+  });
+  panelLabels(g, labs(r));
+}
+
+/** Co-cultura: células principais (verde) com o parceiro (magenta). */
+function drawCocult(g: G, r: LabResult) {
+  const pt = r.partner ? partnerType(r.partner) : 'tumor';
+  [0, 1].forEach((i) => {
+    const rnd = rng(r.seed + 61 * i);
+    clipPanel(g, i, '#03030a', (p) => {
+      const main = cellsIn(p, rnd, i === 0 ? 11 : 8);
+      if (i === 1) {
+        // parceiro
+        for (let k = 0; k < 10; k++) {
+          const x = p.x + 10 + rnd() * (p.w - 20);
+          const y = p.y + 10 + rnd() * (p.h - 20);
+          g.fillStyle = 'rgba(232,121,249,0.85)';
+          g.strokeStyle = 'rgba(232,121,249,0.85)';
+          if (pt === 'fib') {
+            g.save();
+            g.translate(x, y);
+            g.rotate(rnd() * 3);
+            g.beginPath();
+            g.ellipse(0, 0, 22, 4, 0, 0, Math.PI * 2);
+            g.fill();
+            g.restore();
+          } else if (pt === 'endo') {
+            g.lineWidth = 3;
+            g.beginPath();
+            g.moveTo(x, y);
+            g.lineTo(x + (rnd() - 0.5) * 70, y + (rnd() - 0.5) * 70);
+            g.stroke();
+          } else {
+            g.beginPath();
+            g.arc(x, y, pt === 'immune' ? 4 : 8, 0, Math.PI * 2);
+            g.fill();
+          }
+        }
+      }
+      for (const c of main) {
+        g.beginPath();
+        g.ellipse(c.x, c.y, 13, 9, rnd() * 3, 0, Math.PI * 2);
+        g.fillStyle = 'rgba(74,222,128,0.85)';
+        g.fill();
+        if (i === 1 && pt === 'immune' && rnd() < 0.3 + 0.5 * r.effect) {
+          // células T atacando: alvo fragmentado
+          g.fillStyle = 'rgba(232,121,249,0.9)';
+          for (let k = 0; k < 3; k++) {
+            g.beginPath();
+            g.arc(c.x + Math.cos(k * 2.1) * 14, c.y + Math.sin(k * 2.1) * 14, 3.5, 0, Math.PI * 2);
+            g.fill();
+          }
+        }
+      }
+    });
+  });
+  panelLabels(g, labs(r));
+  g.fillStyle = '#64748b';
+  g.font = '9px system-ui';
+  g.fillText(r.partner ? `+ ${LINES[r.partner].name}` : '', PANELS[1].x + 6, H - 2);
 }
 
 export function ResultFigure({ r }: { r: LabResult }) {
@@ -381,6 +645,14 @@ export function ResultFigure({ r }: { r: LabResult }) {
     else if (rd === 'SAGAL') drawSagal(g, r);
     else if (rd === 'CLONO') drawClono(g, r);
     else if (rd === 'WOUND') drawWound(g, r);
+    else if (rd === 'CYCLE') drawCycleBars(g, r);
+    else if (rd === 'AUTO') drawHist(g, r, 3, 3 + 20 * r.effect, 30, t('fig.ax.puncta'), '#22c55e');
+    else if (rd === 'DDR') drawHist(g, r, 1.5, 1.5 + 14 * r.effect, 20, t('fig.ax.foci'), '#f43f5e');
+    else if (rd === 'C12') drawHist(g, r, 3, 3 + 6 * r.effect, 12, t('fig.ax.c12'), '#2563eb');
+    else if (rd === 'FLOWCYC') drawFlowCycle(g, r);
+    else if (rd === 'APOP') drawApop(g, r);
+    else if (rd === 'MULTI') drawMulti(g, r);
+    else if (rd === 'COCULT') drawCocult(g, r);
     else drawImaging(g, r);
     if (!r.ok) {
       // dados inconclusivos: imagem ruidosa
